@@ -27,6 +27,7 @@
 #include "V3ActiveTop.h"
 #include "V3Assert.h"
 #include "V3AssertPre.h"
+#include "V3AstNetlist.h"
 #include "V3Begin.h"
 #include "V3Branch.h"
 #include "V3Case.h"
@@ -347,6 +348,10 @@ void process() {
 	// Create tracing sample points, before we start eliminating signals
 	if (v3Global.opt.trace()) {
 	    V3TraceDecl::traceDeclAll(v3Global.rootp());
+	}
+    
+	if (v3Global.opt.dumpNetlistGraph()) {
+	  V3AstNetlist::astNetlist(v3Global.rootp());
 	}
 
 	// Gate-based logic elimination; eliminate signals and push constant across cell boundaries

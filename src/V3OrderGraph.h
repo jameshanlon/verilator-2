@@ -115,6 +115,7 @@ public:
     virtual ~OrderGraph() {}
     // Methods
     virtual void loopsVertexCb(V3GraphVertex* vertexp);
+    void dumpNetlistGraphFile(const string &filename) const;
 };
 
 //! Graph for UNOPTFLAT loops

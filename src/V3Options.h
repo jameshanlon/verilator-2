@@ -148,6 +148,7 @@ class V3Options {
 
     int		m_convergeLimit;// main switch: --converge-limit
     int		m_dumpTree;	// main switch: --dump-tree
+    int		m_dumpNetlistGraph;	// main switch: --dump-netlist-graph
     int         m_gateStmts;    // main switch: --gate-stmts
     int		m_ifDepth;	// main switch: --if-depth
     int		m_inlineMult;	// main switch: --inline-mult
@@ -307,6 +308,7 @@ class V3Options {
 
     int	   convergeLimit() const { return m_convergeLimit; }
     int    dumpTree() const { return m_dumpTree; }
+    int    dumpNetlistGraph() const { return m_dumpNetlistGraph; }
     int    gateStmts() const { return m_gateStmts; }
     int	   ifDepth() const { return m_ifDepth; }
     int	   inlineMult() const { return m_inlineMult; }

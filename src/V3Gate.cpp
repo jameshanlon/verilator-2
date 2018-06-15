@@ -35,9 +35,11 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <memory>
 #include VL_INCLUDE_UNORDERED_SET
 
 #include "V3Global.h"
+#include "V3File.h"
 #include "V3Gate.h"
 #include "V3Ast.h"
 #include "V3Graph.h"
@@ -378,6 +380,7 @@ private:
     void dedupe();
     void mergeAssigns();
     void decomposeClkVectors();
+	void dumpNetlistGraphFile(V3Graph &graph, const string &filename);
 
     // VISITORS
     virtual void visit(AstNetlist* nodep) {
@@ -388,6 +391,7 @@ private:
 	// Decompose clock vectors -- need to do this before removing redundant edges
 	decomposeClkVectors();
 	m_graph.removeRedundantEdgesSum(&V3GraphEdge::followAlwaysTrue);
+	//if (v3Global.opt.dumpNetlistGraph()) dumpNetlistGraphFile(m_graph, "netlist.graph");
 	m_graph.dumpDotFilePrefixed("gate_simp");
 	// Find gate interconnect and optimize
 	m_graph.userClearVertices();	// vertex->user(): bool.  True indicates we've set it as consumed
@@ -1457,6 +1461,41 @@ void GateVisitor::decomposeClkVectors() {
     }
 }
 
+void GateVisitor::dumpNetlistGraphFile(V3Graph &graph, const string &filename) {
+  const vl_unique_ptr<ofstream> logp (V3File::new_ofstream(v3Global.debugFilename(filename)));
+  if (logp->fail())
+    v3fatalSrc("Can't write "<<filename);
+  map <V3GraphVertex*, int> numMap;
+  int n = 0;
+  // Print vertices.
+  for (V3GraphVertex* vertexp = graph.verticesBeginp(); vertexp;
+       vertexp=vertexp->verticesNextp()) {
+    *logp << "VERTEX " << std::dec << n << " ";
+    if (GateVarVertex* vvertexp = dynamic_cast<GateVarVertex*>(vertexp)) {
+      *logp << "VAR " << vvertexp->varScp()->prettyName();
+      *logp << " @ " << vvertexp->varScp()->fileline();
+	}
+    else if (GateLogicVertex* vvertexp = dynamic_cast<GateLogicVertex*>(vertexp)) {
+      *logp << "LOGIC " << vvertexp->scopep()->prettyName();
+      *logp << " @ " << vvertexp->nodep()->fileline();
+	}
+    *logp << "\n";
+    numMap[vertexp] = n++;
+  }
+  // Print edges.
+  for (V3GraphVertex* vertexp = graph.verticesBeginp(); vertexp;
+       vertexp=vertexp->verticesNextp()) {
+    for (V3GraphEdge* edgep = vertexp->outBeginp(); edgep; edgep=edgep->outNextp()) {
+      if (edgep->weight()) {
+        int fromVnum = numMap[edgep->fromp()];
+        int toVnum = numMap[edgep->top()];
+        *logp << "EDGE " << std::dec << fromVnum << " -> " << toVnum << "\n";
+      }
+    }
+  }
+  logp->close();
+  return;
+}
 
 //######################################################################
 // Convert VARSCOPE(ASSIGN(default, VARREF)) to just VARSCOPE(default)
