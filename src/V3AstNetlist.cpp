@@ -196,13 +196,13 @@ void AstNetlistGraph::dumpNetlistGraphFile(const string& filename) const {
     *logp << "VERTEX " << std::dec << n << " ";
     if (AstNetlistVarVertex* vvertexp = dynamic_cast<AstNetlistVarVertex*>(vertexp)) {
       *logp << "VAR " << vvertexp->varScp()->prettyName();
-      *logp << " @ " << vvertexp->varScp()->fileline();
+      *logp << " @ " << vvertexp->varScp()->fileline()->ascii();
 	  } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
       *logp << "REG " << vvertexp->varScp()->prettyName();
-      *logp << " @ " << vvertexp->varScp()->fileline();
+      *logp << " @ " << vvertexp->varScp()->fileline()->ascii();
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
       *logp << "LOGIC " << vvertexp->scopep()->prettyName();
-      *logp << " @ " << vvertexp->nodep()->fileline();
+      *logp << " @ " << vvertexp->nodep()->fileline()->ascii();
 	}
     *logp << "\n";
     numMap[vertexp] = n++;
