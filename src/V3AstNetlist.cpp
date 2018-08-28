@@ -63,14 +63,14 @@ private:
   }
   void iterateNewStmt(AstNode *nodep) {
     UINFO(6, "New Stmt " << nodep << endl);
-    std::cout << "  New stmt\n";
+    //std::cout << "  New stmt\n";
     logicVertexp = new AstNetlistLogicVertex(&graph, scopep, nodep, activep);
     nodep->iterateChildren(*this);
-    logicVertexp = nullptr;
+    logicVertexp = NULL;
   }
   AstNetlistVarVertex *makeVarVertex(AstVarScope *varScp) {
     UINFO(6, "New var vertex " << varScp << endl);
-    std::cout << "  New vertex\n";
+    //std::cout << "  New vertex\n";
     AstNetlistVarVertex *vertexp = (AstNetlistVarVertex*)(varScp->user1p());
     if (!vertexp) {
       vertexp = new AstNetlistVarVertex(&graph, scopep, varScp);
@@ -80,40 +80,40 @@ private:
   }
   AstNetlistRegVertex *makeRegVertex(AstVarScope *varScp) {
     UINFO(6, "New reg vertex " << varScp << endl);
-    std::cout << "  New register\n";
+    //std::cout << "  New register\n";
     AstNetlistRegVertex *vertexp = new AstNetlistRegVertex(&graph, scopep, varScp);
     return vertexp;
   }
 public:
   explicit AstNetlistVisitor(AstNode *nodep) :
-      logicVertexp(nullptr), scopep(nullptr), modulep(nullptr), activep(nullptr) {
+      logicVertexp(NULL), scopep(NULL), modulep(NULL), activep(NULL) {
     nodep->accept(*this);
   }
   virtual void visit(AstNetlist *nodep) {
     nodep->iterateChildren(*this);
     graph.dumpNetlistGraphFile("netlist.graph");
-    std::cout << "DONE!\n";
+    //std::cout << "DONE!\n";
   }
   virtual void visit(AstNodeModule *nodep) {
-    std::cout<<"module\n";
+    //std::cout<<"module\n";
     modulep = nodep;
     nodep->iterateChildren(*this);
-    modulep = nullptr;
+    modulep = NULL;
   }
   virtual void visit(AstScope *nodep) {
-    std::cout<<"scope\n";
+    //std::cout<<"scope\n";
     scopep = nodep;
     nodep->iterateChildren(*this);
-    scopep = nullptr;
+    scopep = NULL;
   }
   virtual void visit(AstActive *nodep) {
-    std::cout<<"active\n";
+    //std::cout<<"active\n";
     activep = nodep;
     nodep->iterateChildren(*this);
-    activep = nullptr;
+    activep = NULL;
   }
   virtual void visit(AstNodeVarRef *nodep) {
-    std::cout<<"varref\n";
+    //std::cout<<"varref\n";
     if (scopep) {
       if (!logicVertexp) nodep->v3fatalSrc("Var ref not under a logic block");
       AstVarScope *varScp = nodep->varScopep();
@@ -134,15 +134,15 @@ public:
     }
   }
   virtual void visit(AstAlways *nodep) {
-    std::cout<<"always\n";
+    //std::cout<<"always\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAlwaysPublic *nodep) {
-    std::cout<<"alwayspublic\n";
+    //std::cout<<"alwayspublic\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstSenItem *nodep) {
-    std::cout<<"senitem\n";
+    //std::cout<<"senitem\n";
     if (logicVertexp) {
       nodep->iterateChildren(*this);
     } else {
@@ -150,33 +150,33 @@ public:
     }
   }
   virtual void visit(AstSenGate *nodep) {
-    std::cout<<"sengate\n";
+    //std::cout<<"sengate\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstInitial *nodep) {
-    std::cout<<"initial\n";
+    //std::cout<<"initial\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssignAlias *nodep) {
-    std::cout<<"assignalias\n";
+    //std::cout<<"assignalias\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssignW *nodep) {
-    std::cout<<"assignw\n";
+    //std::cout<<"assignw\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssignDly* nodep) {
-    std::cout<<"assigndly\n";
+    //std::cout<<"assigndly\n";
     inDly = true;
     nodep->iterateChildren(*this);
     inDly = false;
   }
   virtual void visit(AstCoverToggle *nodep) {
-    std::cout<<"covertoggle\n";
+    //std::cout<<"covertoggle\n";
     iterateNewStmt(nodep);
   }
   virtual void visit(AstTraceInc *nodep) {
-    std::cout<<"traceinc\n";
+    //std::cout<<"traceinc\n";
     iterateNewStmt(nodep);
   }
   // Default.
