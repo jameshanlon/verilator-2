@@ -90,7 +90,7 @@ private:
   }
 public:
   explicit AstNetlistVisitor(AstNode *nodep) :
-      logicVertexp(NULL), scopep(NULL), modulep(NULL), activep(NULL) {
+      logicVertexp(NULL), scopep(NULL), modulep(NULL), activep(NULL), inDly(false) {
     nodep->accept(*this);
   }
   virtual void visit(AstNetlist *nodep) {
@@ -205,16 +205,20 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
       FileLine *fileLine = vvertexp->varScp()->fileline();
       bool isReg = regs.count(prettyName);
       *logp << (isReg ? "REG_SRC" : "VAR");
-      if (!isReg && varType != AstVarType::VAR)
+      if (!isReg && varType != AstVarType::VAR &&
+                    varType != AstVarType::MODULETEMP &&
+                    varType != AstVarType::BLOCKTEMP)
         *logp << "_" << varType;
       *logp << " " << prettyName;
       *logp << " @ " << fileLine->ascii();
 	  } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
       AstVarType varType = vvertexp->varScp()->varp()->varType();
       FileLine *fileLine = vvertexp->varScp()->fileline();
-      assert(varType == AstVarType::VAR);
-      *logp << "REG_DST ";
-      *logp << vvertexp->varScp()->prettyName();
+      *logp << "REG_DST";
+      assert (varType == AstVarType::VAR ||
+              varType == AstVarType::MODULETEMP ||
+              varType == AstVarType::BLOCKTEMP);
+      *logp << " " << vvertexp->varScp()->prettyName();
       *logp << " @ " << fileLine->ascii();
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
       FileLine *fileLine = vvertexp->nodep()->fileline();
