@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <vector>
 #include <memory>
+#include <unordered_set>
 
 #include "V3Global.h"
 #include "V3File.h"
@@ -10,7 +11,8 @@
 
 class AstNetlistGraph : public V3Graph {
 public:
-  void dumpNetlistGraphFile(const string &filename) const;
+  void dumpNetlistGraphFile(const std::unordered_set<std::string> regs,
+                            const string &filename) const;
 };
 
 class AstNetlistEitherVertex : public V3GraphVertex {
@@ -55,6 +57,7 @@ private:
   AstNodeModule*	       modulep;	     // Current module.
   AstActive*		         activep;	     // Current active.
   bool                   inDly;        // In a delayed assignment statement.
+  std::unordered_set<std::string> regs;
   static int debug() {
 	  static int level = -1;
 	  if (VL_UNLIKELY(level < 0))
@@ -82,6 +85,7 @@ private:
     UINFO(6, "New reg vertex " << varScp << endl);
     //std::cout << "  New register\n";
     AstNetlistRegVertex *vertexp = new AstNetlistRegVertex(&graph, scopep, varScp);
+    regs.insert(varScp->prettyName());
     return vertexp;
   }
 public:
@@ -91,7 +95,7 @@ public:
   }
   virtual void visit(AstNetlist *nodep) {
     nodep->iterateChildren(*this);
-    graph.dumpNetlistGraphFile("netlist.graph");
+    graph.dumpNetlistGraphFile(regs, "netlist.graph");
     //std::cout << "DONE!\n";
   }
   virtual void visit(AstNodeModule *nodep) {
@@ -185,24 +189,38 @@ public:
   }
 };
 
-void AstNetlistGraph::dumpNetlistGraphFile(const string& filename) const {
+void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string> regs,
+                                           const string& filename) const {
   const vl_unique_ptr<ofstream> logp (V3File::new_ofstream(v3Global.debugFilename(filename)));
   if (logp->fail())
     v3fatalSrc("Can't write "<<filename);
   map <V3GraphVertex*, int> numMap;
-  int n = 0;
+  int n = 1; // Vertex 0 is the NULL ID.
   // Print vertices.
   for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {
     *logp << "VERTEX " << std::dec << n << " ";
     if (AstNetlistVarVertex* vvertexp = dynamic_cast<AstNetlistVarVertex*>(vertexp)) {
-      *logp << "VAR " << vvertexp->varScp()->prettyName();
-      *logp << " @ " << vvertexp->varScp()->fileline()->ascii();
+      const std::string &prettyName = vvertexp->varScp()->prettyName();
+      AstVarType varType = vvertexp->varScp()->varp()->varType();
+      FileLine *fileLine = vvertexp->varScp()->fileline();
+      bool isReg = regs.count(prettyName);
+      *logp << (isReg ? "REG_SRC" : "VAR");
+      if (!isReg && varType != AstVarType::VAR)
+        *logp << "_" << varType;
+      *logp << " " << prettyName;
+      *logp << " @ " << fileLine->ascii();
 	  } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
-      *logp << "REG " << vvertexp->varScp()->prettyName();
-      *logp << " @ " << vvertexp->varScp()->fileline()->ascii();
+      AstVarType varType = vvertexp->varScp()->varp()->varType();
+      FileLine *fileLine = vvertexp->varScp()->fileline();
+      assert(varType == AstVarType::VAR);
+      *logp << "REG_DST ";
+      *logp << vvertexp->varScp()->prettyName();
+      *logp << " @ " << fileLine->ascii();
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
-      *logp << "LOGIC " << vvertexp->scopep()->prettyName();
-      *logp << " @ " << vvertexp->nodep()->fileline()->ascii();
+      FileLine *fileLine = vvertexp->nodep()->fileline();
+      *logp << "LOGIC ";
+      *logp << vvertexp->scopep()->prettyName();
+      *logp << " @ " << fileLine->ascii();
 	}
     *logp << "\n";
     numMap[vertexp] = n++;
@@ -223,6 +241,7 @@ void AstNetlistGraph::dumpNetlistGraphFile(const string& filename) const {
 void V3AstNetlist::astNetlist(AstNetlist *nodep) {
   UINFO(2, __FUNCTION__ << ": " << endl);
   {
+    //nodep->dumpTree();
     AstNetlistVisitor visitor(nodep);
   }  // Destruct before checking
   V3Global::dumpCheckGlobalTree("ast_netlist", 0, v3Global.opt.dumpTreeLevel(__FILE__) >= 3);
