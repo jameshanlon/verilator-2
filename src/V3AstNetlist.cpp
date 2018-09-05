@@ -208,7 +208,7 @@ public:
 
 void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string> regs,
                                            const string& filename) const {
-  const vl_unique_ptr<ofstream> logp (V3File::new_ofstream(v3Global.debugFilename(filename)));
+  const vl_unique_ptr<ofstream> logp (V3File::new_ofstream(v3Global.opt.exeName()));
   if (logp->fail())
     v3fatalSrc("Can't write "<<filename);
   map <V3GraphVertex*, int> numMap;
