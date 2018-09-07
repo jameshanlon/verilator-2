@@ -67,16 +67,14 @@ private:
   void iterateNewStmt(AstNode *nodep) {
     // A statment must have a scope for variable references to occur in.
     if (scopep) {
-      UINFO(6, "New stmt " << nodep << endl);
-      //std::cout << "  New stmt\n";
+      UINFO(5, "New stmt " << nodep << " @ " << nodep->fileline() << endl);
       logicVertexp = new AstNetlistLogicVertex(&graph, scopep, nodep, activep);
       nodep->iterateChildren(*this);
       logicVertexp = NULL;
     }
   }
   AstNetlistVarVertex *makeVarVertex(AstVarScope *varScp) {
-    UINFO(6, "New var vertex " << varScp << endl);
-    //std::cout << "  New vertex\n";
+    UINFO(5, "New var vertex " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
     AstNetlistVarVertex *vertexp = (AstNetlistVarVertex*)(varScp->user1p());
     if (!vertexp) {
       vertexp = new AstNetlistVarVertex(&graph, scopep, varScp);
@@ -85,8 +83,7 @@ private:
     return vertexp;
   }
   AstNetlistRegVertex *makeRegVertex(AstVarScope *varScp) {
-    UINFO(6, "New reg vertex " << varScp << endl);
-    //std::cout << "  New register\n";
+    UINFO(5, "New reg vertex " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
     AstNetlistRegVertex *vertexp = new AstNetlistRegVertex(&graph, scopep, varScp);
     regs.insert(varScp->prettyName());
     return vertexp;
@@ -130,19 +127,19 @@ public:
         if (inDly) {
           AstNetlistRegVertex* vvertexp = makeRegVertex(varScp);
           new V3GraphEdge(&graph, logicVertexp, vvertexp, 1);
-          UINFO(6, "New edge from " << logicVertexp->nodep() << endl);
-          UINFO(6, "New edge to   " << nodep << endl);
+          UINFO(5, "New edge from   " << logicVertexp->nodep() << " @ " << logicVertexp->nodep()->fileline() << endl);
+          UINFO(5, "New edge to REG " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
         } else {
           AstNetlistVarVertex* vvertexp = makeVarVertex(varScp);
           new V3GraphEdge(&graph, logicVertexp, vvertexp, 1);
-          UINFO(6, "New edge from " << logicVertexp->nodep() << endl);
-          UINFO(6, "New edge to   " << nodep << endl);
+          UINFO(5, "New edge from   " << logicVertexp->nodep() << " @ " << logicVertexp->nodep()->fileline() << endl);
+          UINFO(5, "New edge to     " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
         }
       } else {
         AstNetlistVarVertex* vvertexp = makeVarVertex(varScp);
         new V3GraphEdge(&graph, vvertexp, logicVertexp, 1);
-        UINFO(6, "New edge from " << nodep << endl);
-        UINFO(6, "New edge to   " << logicVertexp->nodep() << endl);
+        UINFO(5, "New edge from " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
+        UINFO(5, "New edge to   " << logicVertexp->nodep() << " @ " << logicVertexp->nodep()->fileline() << endl);
       }
     }
   }
@@ -263,7 +260,7 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
 void V3AstNetlist::astNetlist(AstNetlist *nodep) {
   UINFO(2, __FUNCTION__ << ": " << endl);
   {
-    //nodep->dumpTree();
+    nodep->dumpTree();
     AstNetlistVisitor visitor(nodep);
   }  // Destruct before checking
   V3Global::dumpCheckGlobalTree("ast_netlist", 0, v3Global.opt.dumpTreeLevel(__FILE__) >= 3);
