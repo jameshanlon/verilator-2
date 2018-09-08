@@ -246,8 +246,8 @@ void process() {
 
 	// Move assignments from X into MODULE temps.
 	// (Before flattening, so each new X variable is shared between all scopes of that module.)
-	V3Unknown::unknownAll(v3Global.rootp());
-	v3Global.constRemoveXs(true);
+	//V3Unknown::unknownAll(v3Global.rootp());
+	//v3Global.constRemoveXs(true);
 
 	// Module inlining
 	// Cannot remove dead variables after this, as alias information for final

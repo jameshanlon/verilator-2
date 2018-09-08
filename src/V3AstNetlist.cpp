@@ -260,7 +260,7 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
 void V3AstNetlist::astNetlist(AstNetlist *nodep) {
   UINFO(2, __FUNCTION__ << ": " << endl);
   {
-    nodep->dumpTree();
+    //nodep->dumpTree();
     AstNetlistVisitor visitor(nodep);
   }  // Destruct before checking
   V3Global::dumpCheckGlobalTree("ast_netlist", 0, v3Global.opt.dumpTreeLevel(__FILE__) >= 3);
