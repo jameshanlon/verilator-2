@@ -562,6 +562,106 @@ void process() {
     // Note early return above when opt.cdc()
 }
 
+void processNetlist () {
+    // Sort modules by level so later algorithms don't need to care
+    V3LinkLevel::modSortByLevel();
+    V3Error::abortIfErrors();
+
+    // Convert parseref's to varrefs, and other directly post parsing fixups
+    V3LinkParse::linkParse(v3Global.rootp());
+    // Cross-link signal names
+    // Cross-link dotted hierarchical references
+    V3LinkDot::linkDotPrimary(v3Global.rootp());
+    v3Global.checkTree();  // Force a check, as link is most likely place for problems
+    // Check if all parameters have been found
+    v3Global.opt.checkParameters();
+    // Correct state we couldn't know at parse time, repair SEL's
+    V3LinkResolve::linkResolve(v3Global.rootp());
+    // Set Lvalue's in variable refs
+    V3LinkLValue::linkLValue(v3Global.rootp());
+    // Convert return/continue/disable to jumps
+    V3LinkJump::linkJump(v3Global.rootp());
+    V3Error::abortIfErrors();
+
+    // Remove parameters by cloning modules to de-parameterized versions
+    //   This requires some width calculations and constant propagation
+    V3Param::param(v3Global.rootp());
+    V3LinkDot::linkDotParamed(v3Global.rootp());	// Cleanup as made new modules
+    V3Error::abortIfErrors();
+
+    // Remove any modules that were parameterized and are no longer referenced.
+    V3Dead::deadifyModules(v3Global.rootp());
+    v3Global.checkTree();
+
+    // Calculate and check widths, edit tree to TRUNC/EXTRACT any width mismatches
+    V3Width::width(v3Global.rootp());
+
+    V3Error::abortIfErrors();
+
+    // Commit to the widths we've chosen; Make widthMin==width
+    V3Width::widthCommit(v3Global.rootp());
+    v3Global.assertDTypesResolved(true);
+    v3Global.widthMinUsage(VWidthMinUsage::MATCHES_WIDTH);
+
+    // Push constants, but only true constants preserving liveness
+    // so V3Undriven sees variables to be eliminated, ie "if (0 && foo) ..."
+    V3Const::constifyAllLive(v3Global.rootp());
+
+    // Signal based lint checks, no change to structures
+    // Must be before first constification pass drops dead code
+    V3Undriven::undrivenAll(v3Global.rootp());
+
+    // Add top level wrapper with instance pointing to old top
+    // Move packages to under new top
+    // Must do this after we know parameters and dtypes (as don't clone dtype decls)
+    V3LinkLevel::wrapTop(v3Global.rootp());
+
+    // Propagate constants into expressions
+    V3Const::constifyAllLint(v3Global.rootp());
+
+    // Remove cell arrays (must be between V3Width and scoping)
+    V3Inst::dearrayAll(v3Global.rootp());
+    V3LinkDot::linkDotArrayed(v3Global.rootp());
+
+    // Expand inouts, stage 2
+    // Also simplify pin connections to always be AssignWs in prep for V3Unknown
+    //V3Tristate::tristateAll(v3Global.rootp());
+
+    // Task inlining & pushing BEGINs names to variables/cells
+    // Begin processing must be after Param, before module inlining
+    V3Begin::debeginAll(v3Global.rootp());	// Flatten cell names, before inliner
+
+    //--PRE-FLAT OPTIMIZATIONS------------------
+
+    // Initial const/dead to reduce work for ordering code
+    V3Const::constifyAll(v3Global.rootp());
+    v3Global.checkTree();
+
+    V3Dead::deadifyDTypes(v3Global.rootp());
+    v3Global.checkTree();
+
+    V3Error::abortIfErrors();
+
+    //--FLATTENING---------------
+
+    // We're going to flatten the hierarchy, so as many optimizations that
+    // can be done as possible should be before this....
+
+    // Convert instantiations to wassigns and always blocks
+    V3Inst::instAll(v3Global.rootp());
+
+    // Inst may have made lots of concats; fix them
+    V3Const::constifyAll(v3Global.rootp());
+
+    // Flatten hierarchy, creating a SCOPE for each module's usage as a cell
+    V3Scope::scopeAll(v3Global.rootp());
+    V3LinkDot::linkDotScope(v3Global.rootp());
+
+    //--OUTPUT NETLIST---------------------------
+
+    V3AstNetlist::astNetlist(v3Global.rootp());
+}
+
 //######################################################################
 
 int main(int argc, char** argv, char** env) {
@@ -629,6 +729,11 @@ int main(int argc, char** argv, char** env) {
 
     // Read first filename
     v3Global.readFiles();
+
+    if (v3Global.opt.dumpNetlistGraph()) {
+      processNetlist();
+      exit(0);
+    }
 
     // Link, etc, if needed
     if (!v3Global.opt.preprocOnly()) {

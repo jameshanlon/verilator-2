@@ -53,16 +53,16 @@ class AstNetlistVisitor : public AstNVisitor {
 private:
   AstNetlistGraph        graph;
   AstNetlistLogicVertex* logicVertexp; // Current statement being tracked, NULL=ignored.
-  AstScope*		           scopep;	     // Current scope being processed.
-  AstNodeModule*	       modulep;	     // Current module.
-  AstActive*		         activep;	     // Current active.
+  AstScope*              scopep;       // Current scope being processed.
+  AstNodeModule*         modulep;      // Current module.
+  AstActive*             activep;      // Current active.
   bool                   inDly;        // In a delayed assignment statement.
   std::unordered_set<std::string> regs;
   static int debug() {
-	  static int level = -1;
-	  if (VL_UNLIKELY(level < 0))
-      level = v3Global.opt.debugSrcLevel(__FILE__);
-	  return level;
+    static int level = -1;
+    if (VL_UNLIKELY(level < 0))
+    level = v3Global.opt.debugSrcLevel(__FILE__);
+    return level;
   }
   void iterateNewStmt(AstNode *nodep) {
     // A statment must have a scope for variable references to occur in.
@@ -119,9 +119,14 @@ public:
   virtual void visit(AstNodeVarRef *nodep) {
     UINFO(6, "VarRef" << endl);
     if (scopep) {
-      if (!logicVertexp) nodep->v3fatalSrc("Var ref not under a logic block");
+      if (!logicVertexp) {
+        nodep->v3info("Warning: var not under a logic block (" << nodep << ")\n");
+        return;
+      }
       AstVarScope *varScp = nodep->varScopep();
-      if (!varScp) nodep->v3fatalSrc("Var didn't get varscoped in V3Scope.cpp");
+      if (!varScp) {
+        nodep->v3fatalSrc("Var didn't get varscoped in V3Scope.cpp");
+      }
       // Add edge.
       if (nodep->lvalue()) {
         if (inDly) {
@@ -153,7 +158,7 @@ public:
   }
   virtual void visit(AstCFunc* nodep) {
     UINFO(6, "CFunc" << endl)
-	  iterateNewStmt(nodep);
+      iterateNewStmt(nodep);
   }
   virtual void visit(AstSenItem *nodep) {
     UINFO(6, "SenItem" << endl);
@@ -225,7 +230,7 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
         *logp << "_" << varType;
       *logp << " " << prettyName;
       *logp << " @ " << fileLine->ascii();
-	  } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
+      } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
       AstVarType varType = vvertexp->varScp()->varp()->varType();
       FileLine *fileLine = vvertexp->varScp()->fileline();
       assert (varType == AstVarType::VAR ||
@@ -240,7 +245,7 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
       *logp << "LOGIC ";
       *logp << vvertexp->scopep()->prettyName();
       *logp << " @ " << fileLine->ascii();
-	}
+    }
     *logp << "\n";
     numMap[vertexp] = n++;
   }
