@@ -242,8 +242,7 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
       *logp << " @ " << fileLine->ascii();
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
       FileLine *fileLine = vvertexp->nodep()->fileline();
-      *logp << "LOGIC ";
-      *logp << vvertexp->scopep()->prettyName();
+      *logp << vvertexp->nodep()->typeName();
       *logp << " @ " << fileLine->ascii();
     }
     *logp << "\n";
