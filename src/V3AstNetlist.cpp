@@ -120,7 +120,7 @@ public:
     UINFO(6, "VarRef" << endl);
     if (scopep) {
       if (!logicVertexp) {
-        nodep->v3info("Warning: var not under a logic block (" << nodep << ")\n");
+        nodep->v3info("var '" << nodep->varScopep()->name() << "'not under a logic block\n");
         return;
       }
       AstVarScope *varScp = nodep->varScopep();
