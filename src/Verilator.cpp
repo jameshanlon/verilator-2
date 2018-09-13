@@ -586,7 +586,7 @@ void processNetlist () {
     // Remove parameters by cloning modules to de-parameterized versions
     //   This requires some width calculations and constant propagation
     V3Param::param(v3Global.rootp());
-    V3LinkDot::linkDotParamed(v3Global.rootp());	// Cleanup as made new modules
+    V3LinkDot::linkDotParamed(v3Global.rootp()); // Cleanup as made new modules
     V3Error::abortIfErrors();
 
     // Remove any modules that were parameterized and are no longer referenced.
@@ -623,13 +623,9 @@ void processNetlist () {
     V3Inst::dearrayAll(v3Global.rootp());
     V3LinkDot::linkDotArrayed(v3Global.rootp());
 
-    // Expand inouts, stage 2
-    // Also simplify pin connections to always be AssignWs in prep for V3Unknown
-    //V3Tristate::tristateAll(v3Global.rootp());
-
     // Task inlining & pushing BEGINs names to variables/cells
     // Begin processing must be after Param, before module inlining
-    V3Begin::debeginAll(v3Global.rootp());	// Flatten cell names, before inliner
+    V3Begin::debeginAll(v3Global.rootp()); // Flatten cell names, before inliner
 
     //--PRE-FLAT OPTIMIZATIONS------------------
 
@@ -656,6 +652,16 @@ void processNetlist () {
     // Flatten hierarchy, creating a SCOPE for each module's usage as a cell
     V3Scope::scopeAll(v3Global.rootp());
     V3LinkDot::linkDotScope(v3Global.rootp());
+
+    //--SCOPE BASED OPTIMIZATIONS--------------
+
+    // Cleanup.
+    V3Const::constifyAll(v3Global.rootp());
+    V3Dead::deadifyDTypesScoped(v3Global.rootp());
+    v3Global.checkTree();
+
+    // Inline all tasks
+    V3Task::taskAll(v3Global.rootp());
 
     //--OUTPUT NETLIST---------------------------
 

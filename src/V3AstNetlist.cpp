@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <vector>
 #include <memory>
+#include <stack>
 #include <unordered_set>
 
 #include "V3Global.h"
@@ -57,6 +58,7 @@ private:
   AstNodeModule*         modulep;      // Current module.
   AstActive*             activep;      // Current active.
   bool                   inDly;        // In a delayed assignment statement.
+  std::stack<AstNetlistLogicVertex*> logicParents;
   std::unordered_set<std::string> regs;
   static int debug() {
     static int level = -1;
@@ -67,14 +69,25 @@ private:
   void iterateNewStmt(AstNode *nodep) {
     // A statment must have a scope for variable references to occur in.
     if (scopep) {
-      UINFO(5, "New stmt " << nodep << " @ " << nodep->fileline() << endl);
+      UINFO(1, "New stmt " << nodep << " @ " << nodep->fileline() << endl);
+      logicParents.push(logicVertexp);
       logicVertexp = new AstNetlistLogicVertex(&graph, scopep, nodep, activep);
+      if (logicParents.top() != NULL) {
+        new V3GraphEdge(&graph, logicParents.top(), logicVertexp, 1);
+        UINFO(1, "New edge from logic " << logicVertexp->nodep()
+                   << " @ " << logicVertexp->nodep()->fileline() << endl);
+        UINFO(1, "New edge to logic   " << logicParents.top()->nodep()
+                   << " @ " << logicParents.top()->nodep()->fileline() << endl);
+      }
       nodep->iterateChildren(*this);
-      logicVertexp = NULL;
+      logicVertexp = logicParents.top();
+      logicParents.pop();
+      UINFO(1, "End new stmt"<<endl);
     }
   }
   AstNetlistVarVertex *makeVarVertex(AstVarScope *varScp) {
-    UINFO(5, "New var vertex " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
+    UINFO(1, "New var vertex " << varScp->prettyName()
+               << " @ " << varScp->fileline() << endl);
     AstNetlistVarVertex *vertexp = (AstNetlistVarVertex*)(varScp->user1p());
     if (!vertexp) {
       vertexp = new AstNetlistVarVertex(&graph, scopep, varScp);
@@ -83,7 +96,8 @@ private:
     return vertexp;
   }
   AstNetlistRegVertex *makeRegVertex(AstVarScope *varScp) {
-    UINFO(5, "New reg vertex " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
+    UINFO(1, "New reg vertex " << varScp->prettyName()
+               << " @ " << varScp->fileline() << endl);
     AstNetlistRegVertex *vertexp = new AstNetlistRegVertex(&graph, scopep, varScp);
     regs.insert(varScp->prettyName());
     return vertexp;
@@ -96,32 +110,32 @@ public:
   virtual void visit(AstNetlist *nodep) {
     nodep->iterateChildren(*this);
     graph.dumpNetlistGraphFile(regs, "netlist.graph");
-    UINFO(6, "DONE!" << endl);
+    UINFO(1, "DONE!" << endl);
   }
   virtual void visit(AstNodeModule *nodep) {
-    UINFO(6, "Module" << endl);
+    UINFO(1, "Module" << endl);
     modulep = nodep;
     nodep->iterateChildren(*this);
     modulep = NULL;
   }
   virtual void visit(AstScope *nodep) {
-    UINFO(6, "Scope" << endl);
+    UINFO(1, "Scope" << endl);
     scopep = nodep;
     nodep->iterateChildren(*this);
     scopep = NULL;
   }
   virtual void visit(AstActive *nodep) {
-    UINFO(6, "Block" << endl);
+    UINFO(1, "Block" << endl);
     activep = nodep;
     nodep->iterateChildren(*this);
     activep = NULL;
   }
   virtual void visit(AstNodeVarRef *nodep) {
-    UINFO(6, "VarRef" << endl);
+    UINFO(1, "VarRef" << endl);
     if (scopep) {
       if (!logicVertexp) {
-        nodep->v3info("var '" << nodep->varScopep()->name() << "'not under a logic block\n");
-        return;
+        nodep->v3fatalSrc("var '" << nodep->varScopep()->name()
+                            << "'not under a logic block\n");
       }
       AstVarScope *varScp = nodep->varScopep();
       if (!varScp) {
@@ -130,38 +144,46 @@ public:
       // Add edge.
       if (nodep->lvalue()) {
         if (inDly) {
+          // NOTE: if the delayed assignment is to a field of a structure, the
+          // whole structure will be marked as a reg. This should be fixed.
           AstNetlistRegVertex* vvertexp = makeRegVertex(varScp);
           new V3GraphEdge(&graph, logicVertexp, vvertexp, 1);
-          UINFO(5, "New edge from   " << logicVertexp->nodep() << " @ " << logicVertexp->nodep()->fileline() << endl);
-          UINFO(5, "New edge to REG " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
+          UINFO(1, "New edge from logic " << logicVertexp->nodep()
+                     << " @ " << logicVertexp->nodep()->fileline() << endl);
+          UINFO(1, "New edge to reg     " << varScp->prettyName()
+                     << " @ " << varScp->fileline() << endl);
         } else {
           AstNetlistVarVertex* vvertexp = makeVarVertex(varScp);
           new V3GraphEdge(&graph, logicVertexp, vvertexp, 1);
-          UINFO(5, "New edge from   " << logicVertexp->nodep() << " @ " << logicVertexp->nodep()->fileline() << endl);
-          UINFO(5, "New edge to     " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
+          UINFO(1, "New edge from logic " << logicVertexp->nodep()
+                     << " @ " << logicVertexp->nodep()->fileline() << endl);
+          UINFO(1, "New edge to var     " << varScp->prettyName()
+                     << " @ " << varScp->fileline() << endl);
         }
       } else {
         AstNetlistVarVertex* vvertexp = makeVarVertex(varScp);
         new V3GraphEdge(&graph, vvertexp, logicVertexp, 1);
-        UINFO(5, "New edge from " << varScp->prettyName() << " @ " << varScp->fileline() << endl);
-        UINFO(5, "New edge to   " << logicVertexp->nodep() << " @ " << logicVertexp->nodep()->fileline() << endl);
+        UINFO(1, "New edge from var " << varScp->prettyName()
+                   << " @ " << varScp->fileline() << endl);
+        UINFO(1, "New edge to logic " << logicVertexp->nodep()
+                   << " @ " << logicVertexp->nodep()->fileline() << endl);
       }
     }
   }
   virtual void visit(AstAlways *nodep) {
-    UINFO(6, "Always" << endl);
+    UINFO(1, "Always" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAlwaysPublic *nodep) {
-    UINFO(6, "AlwaysPublic" << endl);
+    UINFO(1, "AlwaysPublic" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstCFunc* nodep) {
-    UINFO(6, "CFunc" << endl)
-      iterateNewStmt(nodep);
+    UINFO(1, "CFunc" << endl)
+    iterateNewStmt(nodep);
   }
   virtual void visit(AstSenItem *nodep) {
-    UINFO(6, "SenItem" << endl);
+    UINFO(1, "SenItem" << endl);
     if (logicVertexp) {
       nodep->iterateChildren(*this);
     } else {
@@ -169,37 +191,37 @@ public:
     }
   }
   virtual void visit(AstSenGate *nodep) {
-    UINFO(6, "SenGate" << endl);
+    UINFO(1, "SenGate" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstInitial *nodep) {
-    UINFO(6, "Initial" << endl);
+    UINFO(1, "Initial" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssign *nodep) {
-    UINFO(6, "AssignAlias" << endl);
+    UINFO(1, "AssignAlias" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssignAlias *nodep) {
-    UINFO(6, "AssignAlias" << endl);
+    UINFO(1, "AssignAlias" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssignW *nodep) {
-    UINFO(6, "AssignW" << endl);
+    UINFO(1, "AssignW" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstAssignDly* nodep) {
-    UINFO(6, "AssignDly" << endl);
+    UINFO(1, "AssignDly" << endl);
     inDly = true;
     nodep->iterateChildren(*this);
     inDly = false;
   }
   virtual void visit(AstCoverToggle *nodep) {
-    UINFO(6, "CoverToggle" << endl);
+    UINFO(1, "CoverToggle" << endl);
     iterateNewStmt(nodep);
   }
   virtual void visit(AstTraceInc *nodep) {
-    UINFO(6, "TraceInc" << endl);
+    UINFO(1, "TraceInc" << endl);
     iterateNewStmt(nodep);
   }
   // Default.
