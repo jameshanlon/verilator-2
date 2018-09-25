@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <vector>
+#include <map>
 #include <memory>
 #include <stack>
 #include <unordered_set>
@@ -79,7 +80,7 @@ private:
         UINFO(1, "New edge to logic   " << logicParents.top()->nodep()
                    << " @ " << logicParents.top()->nodep()->fileline() << endl);
       }
-      nodep->iterateChildren(*this);
+      iterateChildren(nodep);
       logicVertexp = logicParents.top();
       logicParents.pop();
       UINFO(1, "End new stmt"<<endl);
@@ -108,26 +109,26 @@ public:
     nodep->accept(*this);
   }
   virtual void visit(AstNetlist *nodep) {
-    nodep->iterateChildren(*this);
+    iterateChildren(nodep);
     graph.dumpNetlistGraphFile(regs, "netlist.graph");
     UINFO(1, "DONE!" << endl);
   }
   virtual void visit(AstNodeModule *nodep) {
     UINFO(1, "Module" << endl);
     modulep = nodep;
-    nodep->iterateChildren(*this);
+    iterateChildren(nodep);
     modulep = NULL;
   }
   virtual void visit(AstScope *nodep) {
     UINFO(1, "Scope" << endl);
     scopep = nodep;
-    nodep->iterateChildren(*this);
+    iterateChildren(nodep);
     scopep = NULL;
   }
   virtual void visit(AstActive *nodep) {
     UINFO(1, "Block" << endl);
     activep = nodep;
-    nodep->iterateChildren(*this);
+    iterateChildren(nodep);
     activep = NULL;
   }
   virtual void visit(AstNodeVarRef *nodep) {
@@ -185,7 +186,7 @@ public:
   virtual void visit(AstSenItem *nodep) {
     UINFO(1, "SenItem" << endl);
     if (logicVertexp) {
-      nodep->iterateChildren(*this);
+      iterateChildren(nodep);
     } else {
       iterateNewStmt(nodep);
     }
@@ -213,7 +214,7 @@ public:
   virtual void visit(AstAssignDly* nodep) {
     UINFO(1, "AssignDly" << endl);
     inDly = true;
-    nodep->iterateChildren(*this);
+    iterateChildren(nodep);
     inDly = false;
   }
   virtual void visit(AstCoverToggle *nodep) {
@@ -226,16 +227,16 @@ public:
   }
   // Default.
   virtual void visit(AstNode *nodep) {
-    nodep->iterateChildren(*this);
+    iterateChildren(nodep);
   }
 };
 
 void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string> regs,
                                            const string& filename) const {
-  const vl_unique_ptr<ofstream> logp (V3File::new_ofstream(v3Global.opt.exeName()));
+  const vl_unique_ptr<std::ofstream> logp (V3File::new_ofstream(v3Global.opt.exeName()));
   if (logp->fail())
     v3fatalSrc("Can't write "<<filename);
-  map <V3GraphVertex*, int> numMap;
+  std::map <V3GraphVertex*, int> numMap;
   int n = 1; // Vertex 0 is the NULL ID.
   // Print vertices.
   for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {

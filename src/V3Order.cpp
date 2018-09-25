@@ -126,56 +126,6 @@ void OrderGraph::loopsVertexCb(V3GraphVertex* vertexp) {
     }
 };
 
-void OrderGraph::dumpNetlistGraphFile(const string& filename) const {
-  if (!v3Global.opt.dumpNetlistGraph())
-    return;
-  const vl_unique_ptr<ofstream> logp (V3File::new_ofstream(v3Global.debugFilename(filename)));
-  if (logp->fail())
-    v3fatalSrc("Can't write "<<filename);
-  map <V3GraphVertex*, int> numMap;
-  int n = 0;
-  // Print vertices.
-  for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {
-    *logp << "VERTEX " << std::dec << n << " ";
-    if (OrderInputsVertex* vvertexp = dynamic_cast<OrderInputsVertex*>(vertexp)) {
-      *logp << vertexp->name();
-    } else if (OrderSettleVertex* vvertexp = dynamic_cast<OrderSettleVertex*>(vertexp)) {
-      *logp << "SETTLE " << vertexp->name();
-    } else if (OrderLogicVertex* vvertexp = dynamic_cast<OrderLogicVertex*>(vertexp)) {
-      *logp << "LOGIC" << vvertexp->nodep()->typeName();
-      *logp << " @ " << vvertexp->nodep()->fileline();
-    } else if (OrderVarVertex* vvertexp = dynamic_cast<OrderVarVertex*>(vertexp)) {
-      *logp << "VAR_";
-      if (dynamic_cast<OrderVarStdVertex*>(vertexp))
-        *logp << "STD " << vvertexp->varScp()->prettyName();
-      else if (dynamic_cast<OrderVarPreVertex*>(vertexp))
-        *logp << "PRE " << vvertexp->varScp()->prettyName();
-      else if (dynamic_cast<OrderVarPostVertex*>(vertexp))
-        *logp << "POST " << vvertexp->varScp()->prettyName();
-      else if (dynamic_cast<OrderVarPordVertex*>(vertexp))
-        *logp << "PORD " << vvertexp->varScp()->prettyName();
-      else if (dynamic_cast<OrderVarSettleVertex*>(vertexp))
-        *logp << "SETTLE " << vvertexp->varScp()->prettyName();
-      *logp << " @ " << vvertexp->varScp()->fileline();
-    } else {
-      *logp << "VAR" << vertexp->name();
-    }
-    *logp << "\n";
-    numMap[vertexp] = n++;
-  }
-  // Print edges.
-  for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {
-    for (V3GraphEdge* edgep = vertexp->outBeginp(); edgep; edgep=edgep->outNextp()) {
-      if (edgep->weight()) {
-        int fromVnum = numMap[edgep->fromp()];
-        int toVnum = numMap[edgep->top()];
-        *logp << "EDGE " << std::dec << fromVnum << " -> " << toVnum << "\n";
-      }
-    }
-  }
-  logp->close();
-}
-
 //######################################################################
 
 class OrderMoveDomScope {
@@ -2028,7 +1978,6 @@ void OrderVisitor::processMTasks() {
 void OrderVisitor::process() {
     // Dump data
     m_graph.dumpDotFilePrefixed("orderg_pre");
-	//m_graph.dumpNetlistGraphFile("netlist.graph");
 
     // Break cycles. Each strongly connected subgraph (including cutable
     // edges) will have its own color, and corresponds to a loop in the
