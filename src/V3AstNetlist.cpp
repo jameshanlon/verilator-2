@@ -253,14 +253,15 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
         *logp << "_" << varType;
       *logp << " " << prettyName;
       *logp << " @ " << fileLine->ascii();
-      } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
+    } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
       AstVarType varType = vvertexp->varScp()->varp()->varType();
+      VDirection varDir = vvertexp->varScp()->varp()->declDirection();
       FileLine *fileLine = vvertexp->varScp()->fileline();
       assert (varType == AstVarType::VAR ||
               varType == AstVarType::MODULETEMP ||
               varType == AstVarType::BLOCKTEMP ||
-              varType == AstVarType::OUTPUT);
-      *logp << "REG_DST" << (varType == AstVarType::OUTPUT ? "_OUTPUT" : "");
+              varDir == VDirection::OUTPUT);
+      *logp << "REG_DST" << (varDir == VDirection::OUTPUT ? "_OUTPUT" : "");
       *logp << " " << vvertexp->varScp()->prettyName();
       *logp << " @ " << fileLine->ascii();
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
