@@ -693,7 +693,8 @@ int main(int argc, char** argv, char** env) {
 	&& !v3Global.opt.preprocOnly()
 	&& !v3Global.opt.lintOnly()
 	&& !v3Global.opt.xmlOnly()
-	&& !v3Global.opt.cdc()) {
+	&& !v3Global.opt.cdc()
+	&& !v3Global.opt.dumpNetlistGraph()) {
 	v3fatal("verilator: Need --cc, --sc, --cdc, --lint-only, --xml_only or --E option");
     }
     // Check environment
