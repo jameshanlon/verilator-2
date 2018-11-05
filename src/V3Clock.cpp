@@ -33,15 +33,14 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <algorithm>
 
 #include "V3Global.h"
 #include "V3Clock.h"
 #include "V3Ast.h"
 #include "V3EmitCBase.h"
+
+#include <algorithm>
+#include <cstdarg>
 
 //######################################################################
 // Clock state, as a visitor of each AstNode
@@ -72,10 +71,10 @@ private:
     VL_DEBUG_FUNC;  // Declare debug()
 
     AstVarScope* getCreateLastClk(AstVarScope* vscp) {
-	if (vscp->user1p()) return ((AstVarScope*)vscp->user1p());
+        if (vscp->user1p()) return static_cast<AstVarScope*>(vscp->user1p());
 	AstVar* varp = vscp->varp();
 	if (!varp->width1()) varp->v3error("Unsupported: Clock edge on non-single bit signal: "<<varp->prettyName());
-	string newvarname = ((string)"__Vclklast__"+vscp->scopep()->nameDotless()+"__"+varp->name());
+        string newvarname = (string("__Vclklast__")+vscp->scopep()->nameDotless()+"__"+varp->name());
         AstVar* newvarp = new AstVar(vscp->fileline(), AstVarType::MODULETEMP, newvarname, VFlagLogicPacked(), 1);
         newvarp->noReset(true);  // Reset by below assign
 	m_modp->addStmtp(newvarp);

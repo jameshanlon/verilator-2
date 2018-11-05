@@ -21,15 +21,13 @@
 //*************************************************************************
 
 %{
-#include <cstdio>
-#include <cstdlib>
-#include <cstdarg>
-#include <cstring>
-
 #include "V3Ast.h"
 #include "V3Global.h"
 #include "V3Config.h"
 #include "V3ParseImp.h"  // Defines YYTYPE; before including bison header
+
+#include <cstdlib>
+#include <cstdarg>
 
 #define YYERROR_VERBOSE 1
 #define YYINITDEPTH 10000	// Older bisons ignore YYMAXDEPTH
@@ -53,7 +51,7 @@ class V3ParseGrammar {
 public:
     bool	m_impliedDecl;	// Allow implied wire declarations
     AstVarType	m_varDecl;	// Type for next signal declaration (reg/wire/etc)
-    AstVarType	m_varIO;	// Type for next signal declaration (input/output/etc)
+    VDirection  m_varIO;        // Direction for next signal declaration (reg/wire/etc)
     AstVar*	m_varAttrp;	// Current variable for attribute adding
     AstRange*	m_gateRangep;	// Current range for gate declarations
     AstCase*	m_caseAttrp;	// Current case statement for attribute adding
@@ -70,7 +68,7 @@ public:
     V3ParseGrammar() {
 	m_impliedDecl = false;
 	m_varDecl = AstVarType::UNKNOWN;
-	m_varIO = AstVarType::UNKNOWN;
+	m_varIO = VDirection::NONE;
 	m_varDTypep = NULL;
 	m_gateRangep = NULL;
 	m_memDTypep = NULL;
@@ -184,9 +182,9 @@ int V3ParseGrammar::s_modTypeImpNum = 0;
 
 #define VARRESET_LIST(decl)    { GRAMMARP->m_pinNum=1; VARRESET(); VARDECL(decl); }	// Start of pinlist
 #define VARRESET_NONLIST(decl) { GRAMMARP->m_pinNum=0; VARRESET(); VARDECL(decl); }	// Not in a pinlist
-#define VARRESET() { VARDECL(UNKNOWN); VARIO(UNKNOWN); VARDTYPE(NULL); }
+#define VARRESET() { VARDECL(UNKNOWN); VARIO(NONE); VARDTYPE(NULL); }
 #define VARDECL(type) { GRAMMARP->m_varDecl = AstVarType::type; }
-#define VARIO(type) { GRAMMARP->m_varIO = AstVarType::type; }
+#define VARIO(type) { GRAMMARP->m_varIO = VDirection::type; }
 #define VARDTYPE(dtypep) { GRAMMARP->setDType(dtypep); }
 
 #define VARDONEA(fl,name,array,attrs) GRAMMARP->createVariable((fl),(name),(array),(attrs))
@@ -201,7 +199,7 @@ int V3ParseGrammar::s_modTypeImpNum = 0;
 
 static void ERRSVKWD(FileLine* fileline, const string& tokname) {
     static int toldonce = 0;
-    fileline->v3error((string)"Unexpected \""+tokname+"\": \""+tokname+"\" is a SystemVerilog keyword misused as an identifier.");
+    fileline->v3error(string("Unexpected \"")+tokname+"\": \""+tokname+"\" is a SystemVerilog keyword misused as an identifier.");
     if (!toldonce++) fileline->v3error("Modify the Verilog-2001 code to avoid SV keywords, or use `begin_keywords or --language.");
 }
 
@@ -302,8 +300,8 @@ class AstSenTree;
 %token<fl>		yALWAYS_LATCH	"always_latch"
 %token<fl>		yAND		"and"
 %token<fl>		yASSERT		"assert"
-%token<fl>		yASSUME		"assume"
 %token<fl>		yASSIGN		"assign"
+%token<fl>		yASSUME		"assume"
 %token<fl>		yAUTOMATIC	"automatic"
 %token<fl>		yBEGIN		"begin"
 %token<fl>		yBIND		"bind"
@@ -320,6 +318,7 @@ class AstSenTree;
 %token<fl>		yCLOCKING	"clocking"
 %token<fl>		yCONST__ETC	"const"
 %token<fl>		yCONST__LEX	"const-in-lex"
+%token<fl>		yCONST__REF	"const-then-ref"
 %token<fl>		yCMOS		"cmos"
 %token<fl>		yCONTEXT	"context"
 %token<fl>		yCONTINUE	"continue"
@@ -347,10 +346,12 @@ class AstSenTree;
 %token<fl>		yENDTASK	"endtask"
 %token<fl>		yENUM		"enum"
 %token<fl>		yEXPORT		"export"
+%token<fl>		yEXTERN		"extern"
 %token<fl>		yFINAL		"final"
 %token<fl>		yFOR		"for"
 %token<fl>		yFOREACH	"foreach"
 %token<fl>		yFOREVER	"forever"
+%token<fl>		yFORKJOIN	"forkjoin"
 %token<fl>		yFUNCTION	"function"
 %token<fl>		yGENERATE	"generate"
 %token<fl>		yGENVAR		"genvar"
@@ -397,6 +398,7 @@ class AstSenTree;
 %token<fl>		yRCMOS		"rcmos"
 %token<fl>		yREAL		"real"
 %token<fl>		yREALTIME	"realtime"
+%token<fl>		yREF		"ref"
 %token<fl>		yREG		"reg"
 %token<fl>		yREPEAT		"repeat"
 %token<fl>		yRESTRICT	"restrict"
@@ -408,6 +410,7 @@ class AstSenTree;
 %token<fl>		yRTRANIF1	"rtranif1"
 %token<fl>		ySCALARED	"scalared"
 %token<fl>		ySHORTINT	"shortint"
+%token<fl>		ySHORTREAL	"shortreal"
 %token<fl>		ySIGNED		"signed"
 %token<fl>		ySPECIFY	"specify"
 %token<fl>		ySPECPARAM	"specparam"
@@ -707,8 +710,8 @@ package_declaration:		// ==IEEE: package_declaration
 	;
 
 packageFront<modulep>:
-		yPACKAGE idAny ';'
-			{ $$ = new AstPackage($1,*$2);
+		yPACKAGE lifetimeE idAny ';'
+			{ $$ = new AstPackage($1,*$3);
 			  $$->inLibrary(true);  // packages are always libraries; don't want to make them a "top"
 			  $$->modTrace(GRAMMARP->allTracingOn($$->fileline()));
 			  PARSEP->rootp()->addModulep($$);
@@ -727,7 +730,7 @@ package_itemList<nodep>:	// IEEE: { package_item }
 
 package_item<nodep>:		// ==IEEE: package_item
 		package_or_generate_item_declaration	{ $$ = $1; }
-	//UNSUP	anonymous_program			{ $$ = $1; }
+	|	anonymous_program			{ $$ = $1; }
 	|	package_export_declaration		{ $$ = $1; }
 	|	timeunits_declaration			{ $$ = $1; }
 	;
@@ -812,8 +815,8 @@ module_declaration:		// ==IEEE: module_declaration
 			  SYMP->popScope($1);
 			  GRAMMARP->endLabel($<fl>7,$1,$7); }
 	//
-	//UNSUP	yEXTERN modFront parameter_port_listE portsStarE ';'
-	//UNSUP		{ UNSUP }
+	|	yEXTERN modFront parameter_port_listE portsStarE ';'
+			{ $<fl>1->v3error("Unsupported: extern module"); }
 	;
 
 modFront<modulep>:
@@ -896,11 +899,11 @@ port<nodep>:			// ==IEEE: port
 	//			// Expanded interface_port_header
 	//			// We use instantCb here because the non-port form looks just like a module instantiation
 		portDirNetE id/*interface*/                      portSig variable_dimensionListE sigAttrListE
-			{ $$ = $3; VARDECL(AstVarType::IFACEREF); VARIO(UNKNOWN);
+			{ $$ = $3; VARDECL(AstVarType::IFACEREF); VARIO(NONE);
 			  VARDTYPE(new AstIfaceRefDType($<fl>2,"",*$2));
 			  $$->addNextNull(VARDONEP($$,$4,$5)); }
 	|	portDirNetE id/*interface*/ '.' idAny/*modport*/ portSig variable_dimensionListE sigAttrListE
-			{ $$ = $5; VARDECL(AstVarType::IFACEREF); VARIO(UNKNOWN);
+			{ $$ = $5; VARDECL(AstVarType::IFACEREF); VARIO(NONE);
 			  VARDTYPE(new AstIfaceRefDType($<fl>2,"",*$2,*$4));
 			  $$->addNextNull(VARDONEP($$,$6,$7)); }
 	|	portDirNetE yINTERFACE                           portSig rangeListE sigAttrListE
@@ -997,7 +1000,8 @@ interface_declaration:		// IEEE: interface_declaration + interface_nonansi_heade
 			  if ($3) $1->addStmtp($3);
 			  if ($5) $1->addStmtp($5);
 			  SYMP->popScope($1); }
-	//UNSUP yEXTERN intFront parameter_port_listE portsStarE ';'	{ }
+	|	yEXTERN intFront parameter_port_listE portsStarE ';'
+			{ $<fl>1->v3error("Unsupported: extern interface"); }
 	;
 
 intFront<modulep>:
@@ -1040,11 +1044,35 @@ interface_or_generate_item<nodep>:  // ==IEEE: interface_or_generate_item
 	//			    // module_common_item in interface_item, as otherwise duplicated
 	//			    // with module_or_generate_item's module_common_item
 		modport_declaration			{ $$ = $1; }
-	//UNSUP	extern_tf_declaration			{ $$ = $1; }
+	|	extern_tf_declaration			{ $$ = $1; }
 	;
 
 //**********************************************************************
 // Program headers
+
+anonymous_program<nodep>:	// ==IEEE: anonymous_program
+	//			// See the spec - this doesn't change the scope, items still go up "top"
+		yPROGRAM ';' anonymous_program_itemListE yENDPROGRAM	{ $<fl>1->v3error("Unsupported: Anonymous programs"); $$ = NULL; }
+	;
+
+anonymous_program_itemListE<nodep>:	// IEEE: { anonymous_program_item }
+		/* empty */				{ $$ = NULL; }
+	|	anonymous_program_itemList		{ $$ = $1; }
+	;
+
+anonymous_program_itemList<nodep>:	// IEEE: { anonymous_program_item }
+		anonymous_program_item			{ $$ = $1; }
+	|	anonymous_program_itemList anonymous_program_item	{ $$ = $1->addNextNull($2); }
+	;
+
+anonymous_program_item<nodep>:	// ==IEEE: anonymous_program_item
+		task_declaration			{ $$ = $1; }
+	|	function_declaration			{ $$ = $1; }
+	//UNSUP	class_declaration			{ $$ = $1; }
+	//UNSUP	covergroup_declaration			{ $$ = $1; }
+	//			// class_constructor_declaration is part of function_declaration
+	|	';'					{ }
+	;
 
 program_declaration:		// IEEE: program_declaration + program_nonansi_header + program_ansi_header:
 	//			// timeunits_delcarationE is instead in program_item
@@ -1055,8 +1083,9 @@ program_declaration:		// IEEE: program_declaration + program_nonansi_header + pr
 			  if ($5) $1->addStmtp($5);
 			  SYMP->popScope($1);
 			  GRAMMARP->endLabel($<fl>7,$1,$7); }
-	//UNSUP	yEXTERN	pgmFront parameter_port_listE portsStarE ';'
-	//UNSUP		{ PARSEP->symPopScope(VAstType::PROGRAM); }
+	|	yEXTERN	pgmFront parameter_port_listE portsStarE ';'
+			{ $<fl>1->v3error("Unsupported: extern program");
+			  SYMP->popScope($2); }
 	;
 
 pgmFront<modulep>:
@@ -1097,6 +1126,12 @@ program_generate_item<nodep>:		// ==IEEE: program_generate_item
 	|	conditional_generate_construct		{ $$ = $1; }
 	|	generate_region				{ $$ = $1; }
 	|	elaboration_system_task			{ $$ = $1; }
+	;
+
+extern_tf_declaration<nodep>:		// ==IEEE: extern_tf_declaration
+		yEXTERN task_prototype ';'		{ $<fl>1->v3error("Unsupported: extern task"); $$ = NULL; }
+	|	yEXTERN function_prototype ';'		{ $<fl>1->v3error("Unsupported: extern function"); $$ = NULL; }
+	|	yEXTERN yFORKJOIN task_prototype ';'	{ $<fl>1->v3error("Unsupported: extern forkjoin"); $$ = NULL; }
 	;
 
 modport_declaration<nodep>:		// ==IEEE: modport_declaration
@@ -1213,6 +1248,7 @@ net_declaration<nodep>:		// IEEE: net_declaration - excluding implict
 
 net_declarationFront:		// IEEE: beginning of net_declaration
 		net_declRESET net_type   strengthSpecE net_scalaredE net_dataType { VARDTYPE($5); }
+	//UNSUP	net_declRESET yINTERCONNECT signingE rangeListE { VARNET($2); VARDTYPE(x); }
 	;
 
 net_declRESET:
@@ -1265,8 +1301,8 @@ port_direction:			// ==IEEE: port_direction + tf_port_direction
 		yINPUT					{ VARIO(INPUT); }
 	|	yOUTPUT					{ VARIO(OUTPUT); }
 	|	yINOUT					{ VARIO(INOUT); }
-	//UNSUP	yREF					{ VARIO(REF); }
-	//UNSUP	yCONST__REF yREF			{ VARIO(CONSTREF); }
+	|	yREF					{ VARIO(REF); }
+	|	yCONST__REF yREF			{ VARIO(CONSTREF); }
 	;
 
 port_directionReset:		// IEEE: port_direction that starts a port_declaraiton
@@ -1274,8 +1310,8 @@ port_directionReset:		// IEEE: port_direction that starts a port_declaraiton
 		yINPUT					{ VARRESET_NONLIST(UNKNOWN); VARIO(INPUT); }
 	|	yOUTPUT					{ VARRESET_NONLIST(UNKNOWN); VARIO(OUTPUT); }
 	|	yINOUT					{ VARRESET_NONLIST(UNKNOWN); VARIO(INOUT); }
-	//UNSUP	yREF					{ VARRESET_NONLIST(UNKNOWN); VARIO(REF); }
-	//UNSUP	yCONST__REF yREF			{ VARRESET_NONLIST(UNKNOWN); VARIO(CONSTREF); }
+	|	yREF					{ VARRESET_NONLIST(UNKNOWN); VARIO(REF); }
+	|	yCONST__REF yREF			{ VARRESET_NONLIST(UNKNOWN); VARIO(CONSTREF); }
 	;
 
 port_declaration<nodep>:	// ==IEEE: port_declaration
@@ -1331,7 +1367,8 @@ integer_vector_type<bdtypep>:	// ==IEEE: integer_atom_type
 non_integer_type<bdtypep>:	// ==IEEE: non_integer_type
 		yREAL					{ $$ = new AstBasicDType($1,AstBasicDTypeKwd::DOUBLE); }
 	|	yREALTIME				{ $$ = new AstBasicDType($1,AstBasicDTypeKwd::DOUBLE); }
-	//UNSUP	ySHORTREAL				{ $$ = new AstBasicDType($1,AstBasicDTypeKwd::FLOAT); }
+	|	ySHORTREAL				{ $<fl>1->v3error("Unsupported: shortreal (use real instead)");
+							  $$ = new AstBasicDType($1,AstBasicDTypeKwd::DOUBLE); }
 	;
 
 signingE<signstate>:		// IEEE: signing - plus empty
@@ -1659,6 +1696,7 @@ type_declaration<nodep>:	// ==IEEE: type_declaration
 	|	yTYPEDEF ySTRUCT idAny ';'		{ $$ = NULL; $$ = new AstTypedefFwd($<fl>1, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
 	|	yTYPEDEF yUNION idAny ';'		{ $$ = NULL; $$ = new AstTypedefFwd($<fl>1, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
 	//UNSUP	yTYPEDEF yCLASS idAny ';'		{ $$ = NULL; $$ = new AstTypedefFwd($<fl>1, *$3); SYMP->reinsert($$); PARSEP->tagNodep($$); }
+	//UNSUP	yTYPEDEF yINTERFACE yCLASS idAny ';'	{ ... }
 	;
 
 dtypeAttrListE<nodep>:
@@ -2033,7 +2071,7 @@ packed_dimensionList<rangep>:	// IEEE: { packed_dimension }
 
 packed_dimension<rangep>:	// ==IEEE: packed_dimension
 		anyrange				{ $$ = $1; }
-	//UNSUP	'[' ']'					{ UNSUP }
+	|	'[' ']'					{ $<fl>1->v3error("Unsupported: [] dimensions"); $$ = NULL; }
 	;
 
 //************************************************
@@ -2849,6 +2887,7 @@ task_declaration<ftaskp>:	// ==IEEE: task_declaration
 
 task_prototype<ftaskp>:		// ==IEEE: task_prototype
 		yTASK taskId '(' tf_port_listE ')'	{ $$=$2; $$->addStmtsp($4); $$->prototype(true); SYMP->popScope($$); }
+	|	yTASK taskId				{ $$=$2; $$->prototype(true); SYMP->popScope($$); }
 	;
 
 function_declaration<ftaskp>:	// IEEE: function_declaration + function_body_declaration
@@ -2860,6 +2899,7 @@ function_declaration<ftaskp>:	// IEEE: function_declaration + function_body_decl
 
 function_prototype<ftaskp>:	// IEEE: function_prototype
 		yFUNCTION funcId '(' tf_port_listE ')'	{ $$=$2; $$->addStmtsp($4); $$->prototype(true); SYMP->popScope($$); }
+	|	yFUNCTION funcId			{ $$=$2; $$->prototype(true); SYMP->popScope($$); }
 	;
 
 funcIsolateE<cint>:
@@ -3028,7 +3068,7 @@ dpi_import_export<nodep>:	// ==IEEE: dpi_import_export
 	;
 
 dpi_importLabelE<strp>:		// IEEE: part of dpi_import_export
-		/* empty */				{ static string s = ""; $$ = &s; }
+		/* empty */				{ static string s; $$ = &s; }
 	|	idAny/*c_identifier*/ '='		{ $$ = $1; $<fl>$=$<fl>1; }
 	;
 
@@ -3611,8 +3651,6 @@ id<strp>:
 	;
 
 idAny<strp>:			// Any kind of identifier
-	//UNSUP	yaID__aCLASS				{ $$ = $1; $<fl>$=$<fl>1; }
-	//UNSUP	yaID__aCOVERGROUP			{ $$ = $1; $<fl>$=$<fl>1; }
 		yaID__aPACKAGE				{ $$ = $1; $<fl>$=$<fl>1; }
 	|	yaID__aTYPE				{ $$ = $1; $<fl>$=$<fl>1; }
 	|	yaID__ETC				{ $$ = $1; $<fl>$=$<fl>1; }
@@ -3955,13 +3993,12 @@ AstNodeDType* V3ParseGrammar::createArray(AstNodeDType* basep, AstNodeRange* nra
 AstVar* V3ParseGrammar::createVariable(FileLine* fileline, string name, AstNodeRange* arrayp, AstNode* attrsp) {
     AstNodeDType* dtypep = GRAMMARP->m_varDTypep;
     UINFO(5,"  creVar "<<name<<"  decl="<<GRAMMARP->m_varDecl<<"  io="<<GRAMMARP->m_varIO<<"  dt="<<(dtypep?"set":"")<<endl);
-    if (GRAMMARP->m_varIO == AstVarType::UNKNOWN
+    if (GRAMMARP->m_varIO == VDirection::NONE
 	&& GRAMMARP->m_varDecl == AstVarType::PORT) {
 	// Just a port list with variable name (not v2k format); AstPort already created
 	if (dtypep) fileline->v3error("Unsupported: Ranges ignored in port-lists");
 	return NULL;
     }
-    AstVarType type = GRAMMARP->m_varIO;
     if (GRAMMARP->m_varDecl == AstVarType::WREAL) {
 	// dtypep might not be null, might be implicit LOGIC before we knew better
 	dtypep = new AstBasicDType(fileline,AstBasicDTypeKwd::DOUBLE);
@@ -3972,21 +4009,28 @@ AstVar* V3ParseGrammar::createVariable(FileLine* fileline, string name, AstNodeR
 	dtypep = dtypep->cloneTree(false);
     }
     //UINFO(0,"CREVAR "<<fileline->ascii()<<" decl="<<GRAMMARP->m_varDecl.ascii()<<" io="<<GRAMMARP->m_varIO.ascii()<<endl);
-    if (type == AstVarType::UNKNOWN
-	|| (type == AstVarType::PORT && GRAMMARP->m_varDecl != AstVarType::UNKNOWN))
-	type = GRAMMARP->m_varDecl;
-    if (type == AstVarType::UNKNOWN) fileline->v3fatalSrc("Unknown signal type declared");
+    AstVarType type = GRAMMARP->m_varDecl;
+    if (type == AstVarType::UNKNOWN) {
+        if (GRAMMARP->m_varIO.isAny()) {
+            type = AstVarType::PORT;
+        } else {
+            fileline->v3fatalSrc("Unknown signal type declared");
+        }
+    }
     if (type == AstVarType::GENVAR) {
 	if (arrayp) fileline->v3error("Genvars may not be arrayed: "<<name);
     }
 
     // Split RANGE0-RANGE1-RANGE2 into ARRAYDTYPE0(ARRAYDTYPE1(ARRAYDTYPE2(BASICTYPE3),RANGE),RANGE)
-    AstNodeDType* arrayDTypep = createArray(dtypep,arrayp,false);
+    AstNodeDType* arrayDTypep = createArray(dtypep, arrayp, false);
 
     AstVar* nodep = new AstVar(fileline, type, name, VFlagChildDType(), arrayDTypep);
     nodep->addAttrsp(attrsp);
     if (GRAMMARP->m_varDecl != AstVarType::UNKNOWN) nodep->combineType(GRAMMARP->m_varDecl);
-    if (GRAMMARP->m_varIO != AstVarType::UNKNOWN) nodep->combineType(GRAMMARP->m_varIO);
+    if (GRAMMARP->m_varIO != VDirection::NONE) {
+        nodep->declDirection(GRAMMARP->m_varIO);
+        nodep->direction(GRAMMARP->m_varIO);
+    }
 
     if (GRAMMARP->m_varDecl == AstVarType::SUPPLY0) {
 	nodep->addNext(V3ParseGrammar::createSupplyExpr(fileline, nodep->name(), 0));

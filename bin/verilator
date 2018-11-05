@@ -134,13 +134,15 @@ sub verilator_bin {
                     || ($Debug ? "verilator_bin_dbg" : "verilator_bin"));
     if (defined($ENV{VERILATOR_ROOT})) {
         my $dir = $ENV{VERILATOR_ROOT};
-        if (-x "$dir/bin/$basename") {  # From a "make install" into VERILATOR_ROOT
+        if (-x "$dir/bin/$basename"
+            || -x "$dir/bin/$basename.exe") {  # From a "make install" into VERILATOR_ROOT
             $bin = "$dir/bin/$basename";
         } else {
             $bin = "$dir/$basename";  # From pointing to kit directory
         }
     } else {
-        if (-x "$RealBin/$basename") {
+        if (-x "$RealBin/$basename"
+            || -x "$RealBin/$basename.exe") {
             $bin = "$RealBin/$basename";  # From path/to/verilator with verilator_bin installed
         } else {
             $bin = $basename;  # Find in PATH
@@ -287,6 +289,7 @@ detailed descriptions in L</"VERILATION ARGUMENTS"> for more information.
     --debugi-<srcfile> <level>  Enable debugging a source file at a level
     --default-language <lang>   Default language to parse
      +define+<var>=<value>      Set preprocessor define
+    --dump-defines              Show preprocessor defines with -E
     --dump-tree                 Enable dumping .tree files
     --dump-treei <level>        Enable dumping .tree files at a level
     --dump-treei-<srcfile> <level>  Enable dumping .tree file at a source file at a level
@@ -336,6 +339,7 @@ detailed descriptions in L</"VERILATION ARGUMENTS"> for more information.
     --pins-sc-biguint           Specify types for top level ports
     --pins-uint8                Specify types for top level ports
     --pipe-filter <command>     Filter all input through a script
+    --pp-comments               Show preprocessor comments with -E
     --prefix <topname>          Name of top level class
     --prof-cfuncs               Name functions for profiling
     --prof-threads              Enable generating gantt chart data for threads
@@ -356,6 +360,7 @@ detailed descriptions in L</"VERILATION ARGUMENTS"> for more information.
     --threads-max-mtasks <mtasks>  Tune maximum mtask partitioning
     --top-module <topname>      Name of top level input module
     --trace                     Enable waveform creation
+    --trace-fst                 Enable FST waveform creation
     --trace-lxt2                Enable LXT2 waveform creation
     --trace-depth <levels>      Depth of tracing
     --trace-max-array <depth>   Maximum bit width for tracing
@@ -383,6 +388,7 @@ detailed descriptions in L</"VERILATION ARGUMENTS"> for more information.
     --x-assign <mode>           Assign non-initial Xs to this value
     --x-initial <mode>          Assign initial Xs to this value
     --x-initial-edge            Enable initial X->0 and X->1 edge triggers
+    --xml-only                  Create XML parser output
      -y <dir>                   Directory to search for modules
 
 This is a short summary of the arguments to run-time Verilated arguments.
@@ -500,9 +506,13 @@ output files.
 
 =item -CFLAGS I<flags>
 
-Add specified C compiler flags to the generated makefiles.  When make is
-run on the generated makefile these will be passed to the C++ compiler
-(gcc/g++/msvc++).
+Add specified C compiler flag to the generated makefiles. For multiple
+flags either pass them as a single argument with space separators quoted in
+the shell (C<-CFLAGS "-a -b">), or use multiple -CFLAGS arguments
+(C<-CFLAGS -a -CFLAGS -b>).
+
+When make is run on the generated makefile these will be passed to the C++
+compiler (gcc/g++/msvc++).
 
 =item --cc
 
@@ -711,6 +721,15 @@ Defines the given preprocessor symbol, or multiple symbols if separated by
 plusses.  Similar to -D; +define is fairly standard across Verilog tools
 while -D is an alias for GCC compatibility.
 
+=item --dump-defines
+
+With -E, suppress normal output, and instead print a list of all defines
+existing at the end of pre-processing the input files. Similar to GCC "-dM"
+option. This also gives you a way of finding out what is predefined in
+Verilator using the command:
+
+   touch foo.v ; verilator -E --dump-defines foo.v
+
 =item --dump-tree
 
 Rarely needed.  Enable writing .tree debug files with dumping level 3,
@@ -859,13 +878,17 @@ small modules; they will always be inlined, if allowed.
 
 =item -LDFLAGS I<flags>
 
-Add specified C linker flags to the generated makefiles.  When make is run
-on the generated makefile these will be passed to the C++ linker (ld)
-*after* the primary file being linked.  This flag is called -LDFLAGS as
-that's the traditional name in simulators; it's would have been better
-called LDLIBS as that's the Makefile variable it controls.  (In Make,
-LDFLAGS is before the first object, LDLIBS after.  -L libraries need to be
-in the Make variable LDLIBS, not LDFLAGS.)
+Add specified C linker flags to the generated makefiles.  For multiple
+flags either pass them as a single argument with space separators quoted in
+the shell (C<-LDFLAGS "-a -b">), or use multiple -LDFLAGS arguments
+(C<-LDFLAGS -a -LDFLAGS -b>).
+
+When make is run on the generated makefile these will be passed to the C++
+linker (ld) *after* the primary file being linked.  This flag is called
+-LDFLAGS as that's the traditional name in simulators; it's would have been
+better called LDLIBS as that's the Makefile variable it controls.  (In
+Make, LDFLAGS is before the first object, LDLIBS after.  -L libraries need
+to be in the Make variable LDLIBS, not LDFLAGS.)
 
 =item --l2-name I<value>
 
@@ -1072,6 +1095,10 @@ t/t_pipe_filter test for an example.
 To debug the output of the filter, try using the -E option to see
 preprocessed output.
 
+=item --pp-comments
+
+With -E, show comments in preprocessor output.
+
 =item --prefix I<topname>
 
 Specifies the name of the top level class and makefile.  Defaults to V
@@ -1242,7 +1269,7 @@ designs with only one top.
 =item --trace
 
 Adds waveform tracing code to the model using VCD format. This overrides
-C<--trace-lxt2>.
+C<--trace-fst> and C<--trace-lxt2>.
 
 Verilator will generate additional {prefix}__Trace*.cpp files that will
 need to be compiled.  In addition verilated_vcd_sc.cpp (for SystemC traces)
@@ -1254,9 +1281,15 @@ need to add these to your Makefile manually.
 Having tracing compiled in may result in some small performance losses,
 even when waveforms are not turned on during model execution.
 
+=item --trace-fst
+
+Enable FST waveform tracing in the model. This overrides C<--trace> and C<--trace-lxt2>.
+
 =item --trace-lxt2
 
-Enable LXT2 waveform tracing in the model. This overrides C<--trace>.
+Enable LXT2 waveform tracing in the model. This overrides C<--trace> and
+C<--trace-fst>.  This option is deprecated in favor of FST traces and may
+be removed in the near future.
 
 =item --trace-depth I<levels>
 
@@ -1491,6 +1524,14 @@ B<Note.> Some users have reported that using this option can affect
 convergence, and that it may be necessary to use --converge-limit to
 increase the number of convergence iterations. This may be another
 indication of problems with the modelled design that should be addressed.
+
+=item --xml-only
+
+Create XML output only, do not create any other output.
+
+The XML format is intended to be used to leverage Verilator's parser and
+elaboration to feed to other downstream tools. Be aware that the XML format
+is still evolving; there will be some changes in future versions.
 
 =item -y I<dir>
 
@@ -1801,34 +1842,45 @@ For -cc and -sc mode, it also creates:
 
     {prefix}.cpp                        // Top level C++ file
     {prefix}.h                          // Top level header
+    {prefix}__Slow{__n}.cpp             // Constructors and infrequent routines
+    {prefix}{__n}.cpp                   // Additional top C++ files (--output-split)
     {prefix}{each_verilog_module}.cpp   // Lower level internal C++ files
     {prefix}{each_verilog_module}.h     // Lower level internal header files
+    {prefix}{each_verilog_module}{__n}.cpp   // Additional lower C++ files (--output-split)
 
-In certain optimization modes, it also creates:
+In certain debug and other modes, it also creates:
 
+    {prefix}.xml                        // XML tree information (--xml)
+    {prefix}__Dpi.cpp                   // DPI import and export wrappers
     {prefix}__Dpi.h                     // DPI import and export declarations
     {prefix}__Inlines.h                 // Inline support functions
-    {prefix}__Slow.cpp                  // Constructors and infrequent routines
     {prefix}__Syms.cpp                  // Global symbol table C++
     {prefix}__Syms.h                    // Global symbol table header
-    {prefix}__Trace.cpp                 // Wave file generation code (--trace)
+    {prefix}__Trace__Slow{__n}.cpp      // Wave file generation code (--trace)
+    {prefix}__Trace{__n}.cpp            // Wave file generation code (--trace)
     {prefix}__cdc.txt                   // Clock Domain Crossing checks (--cdc)
     {prefix}__stats.txt                 // Statistics (--stats)
 
 It also creates internal files that can be mostly ignored:
 
-    {each_verilog_module}.vpp           // Post-processed verilog (--debug)
-    {prefix}.flags_vbin                 // Verilator dependencies
-    {prefix}.flags_vpp                  // Pre-processor dependencies
+    {mod_prefix}_{each_verilog_module}{__n}.vpp  // Post-processed verilog
+    {prefix}__ver.d                     // Make dependencies (-MMD)
     {prefix}__verFiles.dat              // Timestamps for skip-identical
-    {prefix}{misc}.d                    // Make dependencies (-MMD)
     {prefix}{misc}.dot                  // Debugging graph files (--debug)
     {prefix}{misc}.tree                 // Debugging files (--debug)
 
-After running Make, the C++ compiler should produce the following:
+After running Make, the C++ compiler may produce the following:
 
+    verilated{misc}.d                   // Intermediate dependencies
+    verilated{misc}.o                   // Intermediate objects
+    {mod_prefix}{misc}.d                // Intermediate dependencies
+    {mod_prefix}{misc}.o                // Intermediate objects
     {prefix}                            // Final executable (w/--exe argument)
     {prefix}__ALL.a                     // Library of all Verilated objects
+    {prefix}__ALLboth.cpp               // Include of classes for single compile
+    {prefix}__ALLcls.cpp                // Include of user classes for single compile
+    {prefix}__ALLsup.cpp                // Include of support files for single compile
+    {prefix}{misc}.d                    // Intermediate dependencies
     {prefix}{misc}.o                    // Intermediate objects
 
 
@@ -3965,16 +4017,29 @@ For example:
 will toggle forever and thus the executable will give the didn't converge
 error to prevent an infinite loop.
 
-To debug this, run Verilator with --prof-cfuncs.  Run make on the
-generated files with "OPT=-DVL_DEBUG". Then call Verilated::debug(1) in
-your main.cpp.
+To debug this, first is to review any UNOPTFLAT warnings that were ignored,
+though typically these can be ignored (at a performance cost), convergence
+issues can also be flagged with this warning as Verilator didn't know if
+they would eventually converge.
+
+Next, run Verilator with --prof-cfuncs.  Run make on the generated
+files with "OPT=-DVL_DEBUG". Then call Verilated::debug(1) in your
+main.cpp.
 
 This will cause each change in a variable to print a message.  Near the
-bottom you'll see the code and variable that causes the problem.  For the
-program above:
+bottom you'll see the variables that causes the problem.  For the program
+above:
 
         CHANGE: filename.v:1: b
         CHANGE: filename.v:2: a
+
+If many signals are getting printed then most likely each are oscillating
+(or there is a bug). It may also be that e.g. "a" may be oscillating, then
+"a" feeds signal "c" which then is also reported as oscillating.
+
+Finally, rare more difficult cases can be debugged like a "C" program;
+either enter GDB and use its tracing facilities, or edit the generated C++
+code to add appropriate prints to see what is going on.
 
 =back
 
@@ -4116,6 +4181,23 @@ trace file if you want all data to land in the same output file.
         tfp->close();
     }
 
+=item How do I generate FST waveforms (traces) in C++?
+
+FST a format by GTKWave.
+This version provides a basic FST support.
+To dump FST format, add the --trace switch to Verilator and change the include path in the testbench to:
+
+    #include "verilated_fst_c.h"
+    VerilatedFstC* tfp = new VerilatedFstC;
+
+Note that currently supporting both FST and VCD in a single simulation is impossible,
+but such requirement could be rare.
+
+=item How do I generate FST waveforms (traces) in SystemC?
+
+The FST library from GTKWave does not currently support SystemC; use VCD
+format instead.
+
 =item How do I generate LXT2 waveforms (traces) in C++?
 
 LXT2 a format by GTKWave, which is usually 10x smaller than VCD format.
@@ -4135,10 +4217,10 @@ format instead.
 
 =item How do I view waveforms (traces)?
 
-Verilator makes standard VCD (Value Change Dump) and LXT2 files.  VCD files are viewable
+Verilator makes standard VCD (Value Change Dump), LXT2 and FST files.  VCD files are viewable
 with the public domain GTKWave (recommended) or Dinotrace (legacy)
 programs, or any of the many commercial offerings;
-LXT2 is supported by GTKWave only.
+LXT2 and FST are supported by GTKWave only.
 
 =item How do I reduce the size of large waveform (trace) files?
 

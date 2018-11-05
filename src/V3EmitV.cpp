@@ -20,17 +20,16 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <cmath>
-#include <map>
-#include <vector>
-#include <algorithm>
 
 #include "V3Global.h"
 #include "V3EmitV.h"
 #include "V3EmitCBase.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdarg>
+#include <map>
+#include <vector>
 
 //######################################################################
 // Emit statements and math operators
@@ -194,7 +193,7 @@ class EmitVBaseVisitor : public EmitCBaseVisitor {
 	putqs(nodep,"end\n");
     }
     virtual void visit(AstComment* nodep) {
-	puts((string)"// "+nodep->name()+"\n");
+        puts(string("// ")+nodep->name()+"\n");
         iterateChildren(nodep);
     }
     virtual void visit(AstContinue* nodep) {
@@ -257,10 +256,10 @@ class EmitVBaseVisitor : public EmitCBaseVisitor {
 	puts(");\n");
     }
     virtual void visit(AstJumpGo* nodep) {
-	putbs("disable "+cvtToStr((void*)(nodep->labelp()))+";\n");
+        putbs("disable "+cvtToHex(nodep->labelp())+";\n");
     }
     virtual void visit(AstJumpLabel* nodep) {
-	putbs("begin : "+cvtToStr((void*)(nodep))+"\n");
+        putbs("begin : "+cvtToHex(nodep)+"\n");
         if (nodep->stmtsp()) iterateAndNextNull(nodep->stmtsp());
 	puts("end\n");
     }
@@ -551,9 +550,9 @@ class EmitVBaseVisitor : public EmitCBaseVisitor {
     }
     // Terminals
     virtual void visit(AstVarRef* nodep) {
-	if (nodep->varScopep())
+        if (nodep->varScopep()) {
 	    putfs(nodep,nodep->varScopep()->prettyName());
-	else {
+        } else {
 	    putfs(nodep,nodep->hiername());
 	    puts(nodep->varp()->prettyName());
 	}
@@ -595,7 +594,7 @@ class EmitVBaseVisitor : public EmitCBaseVisitor {
     virtual void visit(AstCell*) {}		// Handled outside the Visit class
     // Default
     virtual void visit(AstNode* nodep) {
-	puts((string)"\n???? // "+nodep->prettyTypeName()+"\n");
+        puts(string("\n???? // ")+nodep->prettyTypeName()+"\n");
         iterateChildren(nodep);
 	// Not v3fatalSrc so we keep processing
 	nodep->v3error("Internal: Unknown node type reached emitter: "<<nodep->prettyTypeName());

@@ -20,15 +20,6 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdlib>
-#include <cstdarg>
-#include <unistd.h>
-#include <fstream>
-#include <stack>
-#include <vector>
-#include <map>
-#include <list>
 
 #include "V3Error.h"
 #include "V3Global.h"
@@ -36,6 +27,12 @@
 #include "V3PreLex.h"
 #include "V3PreProc.h"
 #include "V3PreShell.h"
+
+#include <cstdarg>
+#include <cstdlib>
+#include <fstream>
+#include <stack>
+#include <vector>
 
 //======================================================================
 // Build in LEX script
@@ -188,6 +185,7 @@ private:
     string defParams(const string& name);
     FileLine* defFileline(const string& name);
 
+    string commentCleanup(const string& text);
     bool commentTokenMatch(string& cmdr, const char* strg);
     string trimWhitespace(const string& strg, bool trailing);
     void unputString(const string& strg);
@@ -233,11 +231,12 @@ public:
     string getline();
     void insertUnreadback(const string& text) { m_lineCmt += text; }
     void insertUnreadbackAtBol(const string& text);
-    void addLineComment(int enter_exit_level);
+    void addLineComment(int enterExit);
+    void dumpDefines(std::ostream& os);
 
     // METHODS, callbacks
-    virtual void comment(const string& cmt);		// Comment detected (if keepComments==2)
-    virtual void include(const string& filename);	// Request a include file be processed
+    virtual void comment(const string& text);  // Comment detected (if keepComments==2)
+    virtual void include(const string& filename);  // Request a include file be processed
     virtual void undef(const string& name);
     virtual void undefineall();
     virtual void define(FileLine* fl, const string& name, const string& value,
@@ -245,7 +244,7 @@ public:
     virtual string removeDefines(const string& text);	// Remove defines in a text string
 
     // CONSTRUCTORS
-    V3PreProcImp() : V3PreProc() {
+    V3PreProcImp() {
 	m_debug = 0;
 	m_states.push(ps_TOP);
 	m_off = 0;
@@ -302,8 +301,7 @@ void V3PreProcImp::undefineall() {
 }
 bool V3PreProcImp::defExists(const string& name) {
     DefinesMap::iterator iter = m_defines.find(name);
-    if (iter == m_defines.end()) return false;
-    return true;
+    return (iter != m_defines.end());
 }
 string V3PreProcImp::defValue(const string& name) {
     DefinesMap::iterator iter = m_defines.find(name);
@@ -341,9 +339,9 @@ void V3PreProcImp::define(FileLine* fl, const string& name, const string& value,
     m_defines.insert(make_pair(name, V3Define(fl, value, params, cmdline)));
 }
 
-string V3PreProcImp::removeDefines(const string& sym) {
+string V3PreProcImp::removeDefines(const string& text) {
     string val = "0_never_match";
-    string rtnsym = sym;
+    string rtnsym = text;
     for (int loopprevent=0; loopprevent<100; loopprevent++) {
 	string xsym = rtnsym;
 	if (xsym.substr(0,1)=="`") xsym.replace(0,1,"");
@@ -364,6 +362,20 @@ void V3PreProcImp::include(const string& filename) {
     V3PreShell::preprocInclude(fileline(), filename);
 }
 
+string V3PreProcImp::commentCleanup(const string& text) {
+    // Cleanup comment for easier parsing (call before commentTokenMatch)
+    string cmd = text;
+    string::size_type pos;
+    while ((pos = cmd.find("//")) != string::npos) cmd.replace(pos, 2, "");
+    while ((pos = cmd.find("/*")) != string::npos) cmd.replace(pos, 2, "");
+    while ((pos = cmd.find("*/")) != string::npos) cmd.replace(pos, 2, "");
+    while ((pos = cmd.find('\"')) != string::npos) cmd.replace(pos, 1, " ");
+    while ((pos = cmd.find('\t')) != string::npos) cmd.replace(pos, 1, " ");
+    while ((pos = cmd.find("  ")) != string::npos) cmd.replace(pos, 2, " ");
+    while (!cmd.empty() && isspace(cmd[cmd.size()-1])) cmd.erase(cmd.size()-1);
+    return cmd;
+}
+
 bool V3PreProcImp::commentTokenMatch(string& cmdr, const char* strg) {
     int len = strlen(strg);
     if (0==strncmp(cmdr.c_str(), strg, len)
@@ -378,11 +390,12 @@ bool V3PreProcImp::commentTokenMatch(string& cmdr, const char* strg) {
 
 void V3PreProcImp::comment(const string& text) {
     // Comment detected.  Only keep relevant data.
-    // if (text =~ m!^\/[\*\/]\s*[vV]erilator\s*(.*$)!) {
-    //	  string cmd = $1;
-    //	  cmd =~ s!\s*(\*\/)\s*$!!;
-    //	  cmd =~ s!\s+! !g;
-    //	  cmd =~ s!\s+$!!g;
+    bool printed = false;
+    if (v3Global.opt.preprocOnly() && v3Global.opt.ppComments()) {
+        insertUnreadback(text);
+        printed = true;
+    }
+
     const char* cp = text.c_str();
     if (cp[0]=='/' && (cp[1]=='/' || cp[1]=='*')) {
 	cp+=2;
@@ -391,69 +404,62 @@ void V3PreProcImp::comment(const string& text) {
     while (isspace(*cp)) cp++;
 
     bool synth = false;
+    bool vlcomment = false;
     if ((cp[0]=='v' || cp[0]=='V')
 	&& 0==(strncmp(cp+1,"erilator",8))) {
-	cp+=strlen("verilator");
+        cp += strlen("verilator");
 	if (*cp == '_') fileline()->v3error("Extra underscore in meta-comment; use /*verilator {...}*/ not /*verilator_{...}*/");
+        vlcomment = true;
     } else if (0==(strncmp(cp,"synopsys",strlen("synopsys")))) {
-	cp+=strlen("synopsys");
+        cp += strlen("synopsys");
 	synth = true;
 	if (*cp == '_') fileline()->v3error("Extra underscore in meta-comment; use /*synopsys {...}*/ not /*synopsys_{...}*/");
     } else if (0==(strncmp(cp,"cadence",strlen("cadence")))) {
-	cp+=strlen("cadence");
+        cp += strlen("cadence");
 	synth = true;
     } else if (0==(strncmp(cp,"pragma",strlen("pragma")))) {
-	cp+=strlen("pragma");
+        cp += strlen("pragma");
 	synth = true;
     } else if (0==(strncmp(cp,"ambit synthesis",strlen("ambit synthesis")))) {
-	cp+=strlen("ambit synthesis");
+        cp += strlen("ambit synthesis");
 	synth = true;
     } else {
 	return;
     }
-    if (*cp && !isspace(*cp)) return;
+
+    if (!vlcomment && !synth) return;  // Short-circuit
 
     while (isspace(*cp)) cp++;
-
-    const char* ep = cp+strlen(cp);
-    if (ep>cp && (ep[-1]=='/' || cp[-2]=='*')) ep-=2;
-    while (ep>cp && (isspace(ep[-1]))) ep--;
-
-    string cmd (cp, ep-cp);
-    string::size_type pos;
-    while ((pos=cmd.find("\"")) != string::npos)
-	cmd.replace(pos, 1, " ");
-    while ((pos=cmd.find("\t")) != string::npos)
-	cmd.replace(pos, 1, " ");
-    while ((pos=cmd.find("  ")) != string::npos)
-	cmd.replace(pos, 2, " ");
+    string cmd = commentCleanup(string(cp));
+    // cmd now is comment without extra spaces and "verilator" prefix
 
     if (synth) {
 	if (v3Global.opt.assertOn()) {
 	    // one_hot, one_cold, (full_case, parallel_case)
 	    if (commentTokenMatch(cmd/*ref*/, "full_case")) {
-                insertUnreadback("/*verilator full_case*/");
+                if (!printed) insertUnreadback("/*verilator full_case*/");
 	    }
 	    if (commentTokenMatch(cmd/*ref*/, "parallel_case")) {
-                insertUnreadback("/*verilator parallel_case*/");
+                if (!printed) insertUnreadback("/*verilator parallel_case*/");
 	    }
 	    //if (commentTokenMatch(cmd/*ref*/, "one_hot")) {
-	    //	insertUnreadback ("/*verilator one_hot*/ "+cmd+";");
+            //  insertUnreadback ("/*verilator one_hot*/ "+cmd+";");
 	    //}
 	    //if (commentTokenMatch(cmd/*ref*/, "one_cold")) {
-	    //	insertUnreadback ("/*verilator one_cold*/ "+cmd+";");
+            //  insertUnreadback ("/*verilator one_cold*/ "+cmd+";");
 	    //}
 	    // else ignore the comment we don't recognize
 	} // else no assertions
-    } else if ((pos=cmd.find("public_flat_rw")) != string::npos) {
-	// "/*verilator public_flat_rw @(foo) */" -> "/*verilator public_flat_rw*/ @(foo)"
-	cmd = cmd.substr(pos+strlen("public_flat_rw"));
-	while (isspace(cmd[0])) cmd = cmd.substr(1);
-	if ((pos=cmd.find("*/")) != string::npos)
-	    cmd.replace(pos, 2, "");
-        insertUnreadback("/*verilator public_flat_rw*/ "+cmd+" /**/");
-    } else {
-        insertUnreadback("/*verilator "+cmd+"*/");
+    } else if (vlcomment) {
+        string::size_type pos;
+        if ((pos = cmd.find("public_flat_rw")) != string::npos) {
+            // "/*verilator public_flat_rw @(foo) */" -> "/*verilator public_flat_rw*/ @(foo)"
+            cmd = cmd.substr(pos+strlen("public_flat_rw"));
+            while (isspace(cmd[0])) cmd = cmd.substr(1);
+            if (!printed) insertUnreadback("/*verilator public_flat_rw*/ "+cmd+" /**/");
+        } else {
+            if (!printed) insertUnreadback("/*verilator "+cmd+"*/");
+        }
     }
 }
 
@@ -629,7 +635,7 @@ string V3PreProcImp::defineSubst(V3DefineRef* refp) {
 	}
     }
 
-    string out = "";
+    string out;
     {   // Parse substitution define using arguments
 	string argName;
 	bool quote = false;
@@ -796,9 +802,19 @@ void V3PreProcImp::insertUnreadbackAtBol(const string& text) {
     insertUnreadback(text);
 }
 
-void V3PreProcImp::addLineComment(int enter_exit_level) {
+void V3PreProcImp::addLineComment(int enterExit) {
     if (lineDirectives()) {
-	insertUnreadbackAtBol(m_lexp->curFilelinep()->lineDirectiveStrg(enter_exit_level));
+        insertUnreadbackAtBol(m_lexp->curFilelinep()->lineDirectiveStrg(enterExit));
+    }
+}
+
+void V3PreProcImp::dumpDefines(std::ostream& os) {
+    for (DefinesMap::iterator it = m_defines.begin(); it != m_defines.end(); ++it) {
+        os<<"`define "<<it->first;
+        // No need to print "()" below as already part of params()
+        if (!it->second.params().empty()) os<<it->second.params();
+        if (!it->second.value().empty()) os<<" "<<it->second.value();
+        os<<endl;
     }
 }
 
@@ -818,7 +834,7 @@ int V3PreProcImp::getRawToken() {
 	    static string rtncmt;  // Keep the c string till next call
 	    rtncmt = m_lineCmt;
 	    if (m_lineCmtNl) {
-		if (!m_rawAtBol) rtncmt = "\n"+rtncmt;
+                if (!m_rawAtBol) rtncmt.insert(0, "\n");
 		m_lineCmtNl = false;
 	    }
 	    yyourtext(rtncmt.c_str(), rtncmt.length());
@@ -853,11 +869,12 @@ void V3PreProcImp::debugToken(int tok, const char* cmtp) {
     if (debug()>=5) {
         string buf = string(yyourtext(), yyourleng());
 	string::size_type pos;
-	while ((pos=buf.find("\n")) != string::npos) { buf.replace(pos, 1, "\\n"); }
-	while ((pos=buf.find("\r")) != string::npos) { buf.replace(pos, 1, "\\r"); }
+        while ((pos = buf.find('\n')) != string::npos) { buf.replace(pos, 1, "\\n"); }
+        while ((pos = buf.find('\r')) != string::npos) { buf.replace(pos, 1, "\\r"); }
         fprintf(stderr, "%d: %s %s %s(%d) dr%d:  <%d>%-10s: %s\n",
                 m_lexp->m_tokFilelinep->lineno(), cmtp, m_off?"of":"on",
-                procStateName(state()), (int)m_states.size(), (int)m_defRefs.size(),
+                procStateName(state()), static_cast<int>(m_states.size()),
+                static_cast<int>(m_defRefs.size()),
                 m_lexp->currentStartState(), tokenName(tok), buf.c_str());
     }
 }
@@ -892,7 +909,9 @@ int V3PreProcImp::getStateToken() {
 	    // We're off or processed the comment specially.  If there are newlines
 	    // in it, we also return the newlines as TEXT so that the linenumber
 	    // count is maintained for downstream tools
-	    for (size_t len=0; len<(size_t)yyourleng(); len++) { if (yyourtext()[len]=='\n') m_lineAdd++; }
+            for (size_t len=0; len<static_cast<size_t>(yyourleng()); len++) {
+                if (yyourtext()[len]=='\n') m_lineAdd++;
+            }
 	    goto next_tok;
 	}
 	if (tok==VP_LINE) {
@@ -999,7 +1018,7 @@ int V3PreProcImp::getStateToken() {
 		break;
 	    }
 	    else {
-		error((string)"Expecting define name. Found: "+tokenName(tok)+"\n");
+                error(string("Expecting define name. Found: ")+tokenName(tok)+"\n");
 		goto next_tok;
 	    }
 	}
@@ -1015,7 +1034,7 @@ int V3PreProcImp::getStateToken() {
 		if (!m_off) return tok;
 		else goto next_tok;
 	    } else {
-		error((string)"Expecting define formal arguments. Found: "+tokenName(tok)+"\n");
+                error(string("Expecting define formal arguments. Found: ")+tokenName(tok)+"\n");
 		goto next_tok;
 	    }
 	}
@@ -1068,7 +1087,7 @@ int V3PreProcImp::getStateToken() {
 	    } else {
 		if (m_defRefs.empty()) fatalSrc("Shouldn't be in DEFPAREN w/o active defref");
 		V3DefineRef* refp = &(m_defRefs.top());
-		error((string)"Expecting ( to begin argument list for define reference `"+refp->name()+"\n");
+                error(string("Expecting ( to begin argument list for define reference `")+refp->name()+"\n");
 		statePop();
 		goto next_tok;
 	    }
@@ -1099,7 +1118,7 @@ int V3PreProcImp::getStateToken() {
 		    if (state() == ps_JOIN) {  // Handle {left}```FOO(ARG) where `FOO(ARG) might be empty
 			if (m_joinStack.empty()) fatalSrc("`` join stack empty, but in a ``");
 			string lhs = m_joinStack.top(); m_joinStack.pop();
-			out = lhs+out;
+                        out.insert(0, lhs);
 			UINFO(5,"``-end-defarg Out:"<<out<<endl);
 			statePop();
 		    }
@@ -1132,7 +1151,7 @@ int V3PreProcImp::getStateToken() {
                 statePush(ps_STRIFY);
                 goto next_tok;
 	    } else {
-		error((string)"Expecting ) or , to end argument list for define reference. Found: "+tokenName(tok));
+                error(string("Expecting ) or , to end argument list for define reference. Found: ")+tokenName(tok));
 		statePop();
 		goto next_tok;
 	    }
@@ -1161,7 +1180,7 @@ int V3PreProcImp::getStateToken() {
 	    }
 	    else {
 		statePop();
-		error((string)"Expecting include filename. Found: "+tokenName(tok)+"\n");
+                error(string("Expecting include filename. Found: ")+tokenName(tok)+"\n");
 		goto next_tok;
 	    }
 	}
@@ -1175,7 +1194,7 @@ int V3PreProcImp::getStateToken() {
 		goto next_tok;
 	    }
 	    else {
-		error((string)"Expecting `error string. Found: "+tokenName(tok)+"\n");
+                error(string("Expecting `error string. Found: ")+tokenName(tok)+"\n");
 		statePop();
 		goto next_tok;
 	    }
@@ -1214,10 +1233,10 @@ int V3PreProcImp::getStateToken() {
 		// Convert any newlines to spaces, so we don't get a multiline "..." without \ escapes
 		// The spec is silent about this either way; simulators vary
 		string::size_type pos;
-		while ((pos=out.find("\n")) != string::npos) {
+                while ((pos=out.find('\n')) != string::npos) {
 		    out.replace(pos, 1, " ");
 		}
-		unputString((string)"\""+out+"\"");
+                unputString(string("\"")+out+"\"");
 		statePop();
 		goto next_tok;
 	    }
@@ -1323,7 +1342,7 @@ int V3PreProcImp::getStateToken() {
 			if (state() == ps_JOIN) {  // Handle {left}```FOO where `FOO might be empty
 			    if (m_joinStack.empty()) fatalSrc("`` join stack empty, but in a ``");
 			    string lhs = m_joinStack.top(); m_joinStack.pop();
-			    out = lhs+out;
+                            out.insert(0, lhs);
 			    UINFO(5,"``-end-defref Out:"<<out<<endl);
 			    statePop();
 			}
@@ -1386,7 +1405,7 @@ int V3PreProcImp::getStateToken() {
 	case VP_DEFFORM:	// Handled by state=ps_DEFFORM;
 	case VP_DEFVALUE:	// Handled by state=ps_DEFVALUE;
 	default:
-	    fatalSrc((string)"Internal error: Unexpected token "+tokenName(tok)+"\n");
+            fatalSrc(string("Internal error: Unexpected token ")+tokenName(tok)+"\n");
 	    break;
 	}
 	return tok;
@@ -1419,11 +1438,14 @@ int V3PreProcImp::getFinalToken(string& buf) {
 	if (m_finAtBol && !(tok==VP_TEXT && buf=="\n")
 	    && m_preprocp->lineDirectives()) {
 	    if (int outBehind = m_lexp->m_tokFilelinep->lineno() - m_finFilelinep->lineno()) {
-		if (debug()>=5) fprintf(stderr,"%d: FIN: readjust, fin at %d  request at %d\n",
-					m_lexp->m_tokFilelinep->lineno(),
-					m_finFilelinep->lineno(), m_lexp->m_tokFilelinep->lineno());
+                if (debug()>=5) {
+                    fprintf(stderr, "%d: FIN: readjust, fin at %d  request at %d\n",
+                            m_lexp->m_tokFilelinep->lineno(),
+                            m_finFilelinep->lineno(), m_lexp->m_tokFilelinep->lineno());
+                }
 		m_finFilelinep = m_finFilelinep->create(m_lexp->m_tokFilelinep->filename(),m_lexp->m_tokFilelinep->lineno());
-		if (outBehind > 0 && outBehind <= (int)V3PreProc::NEWLINES_VS_TICKLINE) {
+                if (outBehind > 0
+                    && (outBehind <= static_cast<int>(V3PreProc::NEWLINES_VS_TICKLINE))) {
 		    // Output stream is behind, send newlines to get back in sync
 		    // (Most likely because we're completing a disabled `endif)
 		    if (m_preprocp->keepWhitespace()) {

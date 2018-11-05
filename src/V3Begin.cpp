@@ -31,16 +31,15 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <algorithm>
-#include <vector>
 
 #include "V3Global.h"
 #include "V3Begin.h"
 #include "V3Inst.h"
 #include "V3Ast.h"
+
+#include <algorithm>
+#include <cstdarg>
+#include <vector>
 
 //######################################################################
 
@@ -197,7 +196,7 @@ private:
 	    // To keep correct visual order, must add before other Text's
 	    AstNode* afterp = nodep->scopeAttrp();
 	    if (afterp) afterp->unlinkFrBackWithNext();
-	    nodep->scopeAttrp(new AstText(nodep->fileline(), (string)"__DOT__"+m_namedScope));
+            nodep->scopeAttrp(new AstText(nodep->fileline(), string("__DOT__")+m_namedScope));
 	    if (afterp) nodep->scopeAttrp(afterp);
 	}
         iterateChildren(nodep);

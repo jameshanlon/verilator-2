@@ -20,19 +20,18 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <cmath>
-#include <map>
-#include <set>
-#include <vector>
-#include <algorithm>
 
 #include "V3Global.h"
 #include "V3EmitC.h"
 #include "V3EmitCBase.h"
 #include "V3LanguageWords.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdarg>
+#include <map>
+#include <set>
+#include <vector>
 
 //######################################################################
 // Symbol table emitting
@@ -144,7 +143,7 @@ class EmitCSyms : EmitCBaseVisitor {
 			}
 			if (out.substr(0,10) == "TOP__DOT__") out.replace(0,10,"");
 			if (out.substr(0,4) == "TOP.") out.replace(0,4,"");
-			while ((pos=out.find(".")) != string::npos) {
+                        while ((pos = out.find('.')) != string::npos) {
 			    out.replace(pos, 1, "__");
 			}
 			while ((pos=out.find("__DOT__")) != string::npos) {
@@ -299,7 +298,7 @@ void EmitCSyms::emitSymHdr() {
     }
 
     puts("\n// SYMS CLASS\n");
-    puts((string)"class "+symClassName()+" : public VerilatedSyms {\n");
+    puts(string("class ")+symClassName()+" : public VerilatedSyms {\n");
     ofp()->putsPrivate(false);  // public:
 
     puts("\n// LOCAL STATE\n");
@@ -340,7 +339,7 @@ void EmitCSyms::emitSymHdr() {
 
     puts("\n// CREATORS\n");
     puts(symClassName()+"("+topClassName()+"* topp, const char* namep);\n");
-    puts((string)"~"+symClassName()+"() {}\n");
+    puts(string("~")+symClassName()+"() {}\n");
 
     puts("\n// METHODS\n");
     puts("inline const char* name() { return __Vm_namep; }\n");
@@ -409,7 +408,7 @@ void EmitCSyms::emitSymImp() {
 	if (!modp->isTop()) {
 	    string arrow = scopep->name();
 	    string::size_type pos;
-	    while ((pos=arrow.find(".")) != string::npos) {
+            while ((pos = arrow.find('.')) != string::npos) {
 		arrow.replace(pos, 1, "->");
 	    }
 	    if (arrow.substr(0,5) == "TOP->") arrow.replace(0,5,"TOPp->");
@@ -526,6 +525,7 @@ void EmitCSyms::emitSymImp() {
 	    string classname = de ? "VerilatedDeserialize" : "VerilatedSerialize";
 	    string funcname = de ? "__Vdeserialize" : "__Vserialize";
 	    string op = de ? ">>" : "<<";
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
 	    puts("void "+symClassName()+"::"+funcname+"("+classname+"& os) {\n");
 	    puts(   "// LOCAL STATE\n");
 	    // __Vm_namep presumably already correct

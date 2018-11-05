@@ -2,15 +2,52 @@ Revision history for Verilator
 
 The contributors that suggested a given feature are shown in []. Thanks!
 
-* Verilator 4.003 devel
+
+* Verilator 4.007 devel
+
+***   Support "ref" and "const ref" pins and functions, bug1360. [Jake Longo]
+
+***   In --xml-only show the original unmodified names, and add module_files
+      and cells similar to Verilog-Perl, msg2719. [Kanad Kanhere]
+
+****  Fix --trace-lxt2 compile error on MinGW, msg2711. [HyungKi Jeong]
+
+****  Fix hang on bad pattern keys, bug1364. [Matt Myers]
+
+
+* Verilator 4.006 2018-10-27
+
+**    Add --pp-comments, msg2700. [Robert Henry]
+
+**    Add --dump-defines.
+
+***   For --trace-fst, save enum decoding information, bug1358. [Sergi Granell]
+      (To visualize enumeration data you must use GTKwave 3.3.95 or newer.)
+
+***   For --trace-fst, instead of *.fst.hier, put data into *.fst. [Tony Bybell]
+
+****  Fix --trace-lxt2 compile error on MinGW, msg2667. [HyungKi Jeong]
+
+****  Fix Windows .exe not found, bug1361. [Patrick Stewart]
+
+
+* Verilator 4.004 2018-10-6
+
+**    Add GTKWave FST native tracing, bug1356. [Sergi Granell]
+      (Verilator developers need to pull the latest vcddiff.)
 
 ***   Support $past. [Dan Gisselquist]
 
 ***   Support restrict, bug1350. [Clifford Wolf]
 
-***   Fix Mac OSX 10.13.6 / LLVM 9.1  compile issues, bug1348. [Kevin Kiningham]
+***   Rename include/lxt2 to include/gtkwave.
 
-***   Fix MinGW compile issues, msg2636. [HyungKi Jeong]
+****  Fix replication of 64-bit signal change detects.
+
+****  Fix Mac OSX 10.13.6 / LLVM 9.1 compile issues, bug1348. [Kevin Kiningham]
+
+****  Fix MinGW compile issues, msg2636. [HyungKi Jeong]
+
 
 * Verilator 4.002 2018-09-16
 

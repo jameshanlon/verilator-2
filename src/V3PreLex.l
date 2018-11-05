@@ -502,7 +502,7 @@ void V3PreLex::lineDirective(const char* textp) {
 }
 
 void V3PreLex::dumpSummary() {
-    cout<<"-  pp::dumpSummary  curBuf="<<(void*)(currentBuffer());
+    cout<<"-  pp::dumpSummary  curBuf="<<cvtToHex(currentBuffer());
 #ifdef FLEX_DEBUG  // Else peeking at internals may cause portability issues
     ssize_t left = (yy_n_chars
 		    - (yy_c_buf_p
@@ -518,7 +518,7 @@ void V3PreLex::dumpStack() {
     std::stack<VPreStream*> tmpstack = LEXP->m_streampStack;
     while (!tmpstack.empty()) {
 	VPreStream* streamp = tmpstack.top();
-	cout<<"-    bufferStack["<<(void*)(streamp)<<"]: "
+	cout<<"-    bufferStack["<<cvtToHex(streamp)<<"]: "
 	    <<" at="<<streamp->m_curFilelinep
 	    <<" nBuf="<<streamp->m_buffers.size()
 	    <<" size0="<<(streamp->m_buffers.empty() ? 0 : streamp->m_buffers.front().length())
@@ -532,8 +532,8 @@ void V3PreLex::dumpStack() {
 string V3PreLex::cleanDbgStrg(const string& in) {
     string out = in;
     string::size_type pos;
-    while ((pos=out.find("\n")) != string::npos) { out.replace(pos, 1, "\\n"); }
-    while ((pos=out.find("\r")) != string::npos) { out.replace(pos, 1, "\\r"); }
+    while ((pos = out.find('\n')) != string::npos) { out.replace(pos, 1, "\\n"); }
+    while ((pos = out.find('\r')) != string::npos) { out.replace(pos, 1, "\\r"); }
     return out;
 }
 

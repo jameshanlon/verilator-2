@@ -29,14 +29,13 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <algorithm>
 
 #include "V3Global.h"
 #include "V3Depth.h"
 #include "V3Ast.h"
+
+#include <algorithm>
+#include <cstdarg>
 
 //######################################################################
 
@@ -58,7 +57,7 @@ private:
 	UINFO(6,"  Deep  "<<nodep<<endl);
 	//if (debug()>=9) nodep->dumpTree(cout,"deep:");
 
-	string newvarname = ((string)"__Vdeeptemp"+cvtToStr(m_modp->varNumGetInc()));
+        string newvarname = (string("__Vdeeptemp")+cvtToStr(m_modp->varNumGetInc()));
         AstVar* varp = new AstVar(nodep->fileline(), AstVarType::STMTTEMP, newvarname,
                                   // Width, not widthMin, as we may be in middle of BITSEL expression which
                                   // though it's one bit wide, needs the mask in the upper bits.

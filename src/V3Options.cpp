@@ -20,19 +20,6 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#ifndef _WIN32
-# include <sys/utsname.h>
-#endif
-#include <cctype>
-#include <dirent.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <set>
-#include <list>
-#include <map>
-#include <memory>
 
 #include "V3Global.h"
 #include "V3String.h"
@@ -41,6 +28,19 @@
 #include "V3Error.h"
 #include "V3File.h"
 #include "V3PreShell.h"
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#ifndef _WIN32
+# include <sys/utsname.h>
+#endif
+#include <cctype>
+#include <dirent.h>
+#include <fcntl.h>
+#include <list>
+#include <map>
+#include <memory>
+#include <set>
 
 #include "config_rev.h"
 
@@ -116,14 +116,14 @@ void V3Options::addDefine(const string& defline, bool allowPlus) {
     while (left != "") {
 	string def = left;
 	string::size_type pos;
-	if (allowPlus && ((pos=left.find("+")) != string::npos)) {
+        if (allowPlus && ((pos = left.find('+')) != string::npos)) {
 	    left = left.substr(pos+1);
 	    def.erase(pos);
 	} else {
 	    left = "";
 	}
 	string value;
-	if ((pos=def.find("=")) != string::npos) {
+        if ((pos = def.find('=')) != string::npos) {
 	    value = def.substr(pos+1);
 	    def.erase(pos);
 	}
@@ -138,14 +138,14 @@ void V3Options::addParameter(const string& paramline, bool allowPlus) {
     while (left != "") {
         string param = left;
         string::size_type pos;
-        if (allowPlus && ((pos=left.find("+")) != string::npos)) {
+        if (allowPlus && ((pos = left.find('+')) != string::npos)) {
             left = left.substr(pos+1);
             param.erase(pos);
         } else {
             left = "";
         }
         string value;
-        if ((pos=param.find("=")) != string::npos) {
+        if ((pos = param.find('=')) != string::npos) {
             value = param.substr(pos+1);
             param.erase(pos);
         }
@@ -248,7 +248,7 @@ string V3Options::allArgsString() {
 V3LangCode::V3LangCode(const char* textp) {
     // Return code for given string, or ERROR, which is a bad code
     for (int codei=V3LangCode::L_ERROR; codei<V3LangCode::_ENUM_END; ++codei) {
-	V3LangCode code = (V3LangCode)codei;
+        V3LangCode code = V3LangCode(codei);
 	if (0==strcasecmp(textp,code.ascii())) {
 	    m_e = code; return;
 	}
@@ -260,7 +260,8 @@ V3LangCode::V3LangCode(const char* textp) {
 // File searching
 
 bool V3Options::fileStatDir(const string& filename) {
-    struct stat	sstat;		// Stat information
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+    struct stat sstat;  // Stat information
     int err = stat(filename.c_str(), &sstat);
     if (err!=0) return false;
     if (!S_ISDIR(sstat.st_mode)) return false;
@@ -268,7 +269,8 @@ bool V3Options::fileStatDir(const string& filename) {
 }
 
 bool V3Options::fileStatNormal(const string& filename) {
-    struct stat	sstat;		// Stat information
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+    struct stat sstat;  // Stat information
     int err = stat(filename.c_str(), &sstat);
     if (err!=0) return false;
     if (S_ISDIR(sstat.st_mode)) return false;
@@ -396,7 +398,7 @@ void V3Options::filePathLookedMsg(FileLine* fl, const string& modname) {
 V3LangCode V3Options::fileLanguage(const string &filename) {
     string ext = V3Os::filenameNonDir(filename);
     string::size_type pos;
-    if ((pos = ext.rfind(".")) != string::npos) {
+    if ((pos = ext.rfind('.')) != string::npos) {
 	ext.erase(0, pos + 1);
         std::map<string,V3LangCode>::iterator it = m_impp->m_langExts.find(ext);
 	if (it != m_impp->m_langExts.end()) {
@@ -450,6 +452,7 @@ string V3Options::getenvSYSTEMC_ARCH() {
         string sysname = "WIN32";
         var = "win32";
 #else
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 	struct utsname uts;
 	uname(&uts);
 	string sysname = VString::downcase(uts.sysname);  // aka  'uname -s'
@@ -620,7 +623,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( !strncmp (sw, "+libext+", 8)) {
 		string exts = string(sw+strlen("+libext+"));
 		string::size_type pos;
-		while ((pos=exts.find("+")) != string::npos) {
+                while ((pos = exts.find('+')) != string::npos) {
                     addLibExtV(exts.substr(0,pos));
 		    exts = exts.substr(pos+1);
 		}
@@ -667,6 +670,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( !strcmp (sw, "-debug-sigsegv") )		{ throwSigsegv(); }  // Undocumented, see also --debug-abort
 	    else if ( !strcmp (sw, "-debug-fatalsrc") )		{ v3fatalSrc("--debug-fatal-src"); }  // Undocumented, see also --debug-abort
 	    else if ( onoff   (sw, "-decoration", flag/*ref*/) ) { m_decoration = flag; }
+            else if ( onoff   (sw, "-dump-defines", flag/*ref*/) ) { m_dumpDefines = flag; }
 	    else if ( onoff   (sw, "-dump-tree", flag/*ref*/) )	{ m_dumpTree = flag ? 3 : 0; }  // Also see --dump-treei
 	    else if ( onoff   (sw, "-dump-netlist-graph", flag/*ref*/) ) { m_dumpNetlistGraph = flag; }
 	    else if ( onoff   (sw, "-exe", flag/*ref*/) )	{ m_exe = flag; }
@@ -679,6 +683,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( onoff   (sw, "-pins-sc-uint", flag/*ref*/) ){ m_pinsScUint = flag; if (!m_pinsScBigUint) m_pinsBv = 65; }
 	    else if ( onoff   (sw, "-pins-sc-biguint", flag/*ref*/) ){ m_pinsScBigUint = flag; m_pinsBv = 513; }
 	    else if ( onoff   (sw, "-pins-uint8", flag/*ref*/) ){ m_pinsUint8 = flag; }
+            else if ( onoff   (sw, "-pp-comments", flag/*ref*/) ) { m_ppComments = flag; }
 	    else if ( !strcmp (sw, "-private") )		{ m_public = false; }
             else if ( onoff   (sw, "-prof-cfuncs", flag/*ref*/) )       { m_profCFuncs = flag; }
             else if ( onoff   (sw, "-profile-cfuncs", flag/*ref*/) )    { m_profCFuncs = flag; }  // Undocumented, for backward compat
@@ -696,7 +701,10 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
 	    else if ( !strcmp (sw, "-sv") )				{ m_defaultLanguage = V3LangCode::L1800_2005; }
             else if ( onoff   (sw, "-threads-coarsen", flag/*ref*/))    { m_threadsCoarsen = flag; }  // Undocumented, debug
 	    else if ( onoff   (sw, "-trace", flag/*ref*/) )		{ m_trace = flag; }
-            else if ( onoff   (sw, "-trace-lxt2", flag/*ref*/) )        { m_trace = flag; m_traceFormat = TraceFormat::LXT2; addLdLibs("-lz"); }
+            else if ( onoff   (sw, "-trace-fst", flag/*ref*/) )         { m_trace = flag; m_traceFormat = TraceFormat::FST; addLdLibs("-lz"); }
+            else if ( onoff   (sw, "-trace-lxt2", flag/*ref*/) )        {
+                std::cerr<<"-Note: --trace-lxt2 format is deprecated, please use --trace-fst.\n";
+                m_trace = flag; m_traceFormat = TraceFormat::LXT2; addLdLibs("-lz"); }
 	    else if ( onoff   (sw, "-trace-dups", flag/*ref*/) )	{ m_traceDups = flag; }
 	    else if ( onoff   (sw, "-trace-params", flag/*ref*/) )	{ m_traceParams = flag; }
 	    else if ( onoff   (sw, "-trace-structs", flag/*ref*/) )	{ m_traceStructs = flag; }
@@ -1137,7 +1145,7 @@ void V3Options::parseOptsFile(FileLine* fl, const string& filename, bool rel) {
     // Split into argument list and process
     // Note we don't respect quotes.  It seems most simulators dont.
     // Woez those that expect it; we'll at least complain.
-    if (whole_file.find("\"") != string::npos) {
+    if (whole_file.find('\"') != string::npos) {
 	fl->v3error("Double quotes in -f files cause unspecified behavior.");
     }
 
@@ -1162,7 +1170,7 @@ void V3Options::parseOptsFile(FileLine* fl, const string& filename, bool rel) {
     // Convert to argv style arg list and parse them
     char* argv [args.size()+1];
     for (unsigned i=0; i<args.size(); ++i) {
-	argv[i] = (char*)args[i].c_str();
+        argv[i] = const_cast<char*>(args[i].c_str());
     }
     parseOptsList(fl, optdir, args.size(), argv);
 }
@@ -1248,6 +1256,7 @@ V3Options::V3Options() {
     m_debugPartition = false;
     m_debugSelfTest = false;
     m_decoration = true;
+    m_dumpDefines = false;
     m_exe = false;
     m_ignc = false;
     m_inhibitSim = false;
@@ -1260,6 +1269,7 @@ V3Options::V3Options() {
     m_pinsScUint = false;
     m_pinsScBigUint = false;
     m_pinsUint8 = false;
+    m_ppComments = false;
     m_profCFuncs = false;
     m_profThreads = false;
     m_preprocOnly = false;

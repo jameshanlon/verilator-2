@@ -33,16 +33,15 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <algorithm>
 
 #include "V3Global.h"
 #include "V3Unknown.h"
 #include "V3Ast.h"
 #include "V3Const.h"
 #include "V3Stats.h"
+
+#include <algorithm>
+#include <cstdarg>
 
 //######################################################################
 
@@ -119,7 +118,7 @@ private:
 	    replaceHandle.relink(newp);
 	}
 	else {
-	    string name = ((string)"__Vlvbound"+cvtToStr(m_modp->varNumGetInc()));
+            string name = (string("__Vlvbound")+cvtToStr(m_modp->varNumGetInc()));
 	    AstVar* varp = new AstVar(fl, AstVarType::MODULETEMP, name,
 				      prep->dtypep());
 	    m_modp->addStmtp(varp);
@@ -191,9 +190,9 @@ private:
 		lhsp->deleteTree(); VL_DANGLING(lhsp);
 		rhsp->deleteTree(); VL_DANGLING(rhsp);
 	    } else {
-                if (VN_IS(nodep, EqCase))
-                newp = new AstEq(nodep->fileline(), lhsp, rhsp);
-                else newp = new AstNeq(nodep->fileline(), lhsp, rhsp);
+                if (VN_IS(nodep, EqCase)) {
+                    newp = new AstEq(nodep->fileline(), lhsp, rhsp);
+                } else { newp = new AstNeq(nodep->fileline(), lhsp, rhsp); }
 	    }
 	    nodep->replaceWith(newp);
 	    nodep->deleteTree(); VL_DANGLING(nodep);
@@ -226,9 +225,9 @@ private:
 		AstNode* and1p = new AstAnd(nodep->fileline(), lhsp,
 					    new AstConst(nodep->fileline(), nummask));
 		AstNode* and2p = new AstConst(nodep->fileline(), numval);
-                if (VN_IS(nodep, EqWild))
+                if (VN_IS(nodep, EqWild)) {
                     newp  = new AstEq(nodep->fileline(), and1p, and2p);
-                else newp = new AstNeq(nodep->fileline(), and1p, and2p);
+                } else { newp = new AstNeq(nodep->fileline(), and1p, and2p); }
 		rhsp->deleteTree(); VL_DANGLING(rhsp);
 	    }
 	    nodep->replaceWith(newp);
@@ -287,7 +286,7 @@ private:
 		// Make a Vxrand variable
 		// We use the special XTEMP type so it doesn't break pure functions
 		if (!m_modp) nodep->v3fatalSrc("X number not under module");
-		string newvarname = ((string)"__Vxrand"
+                string newvarname = (string("__Vxrand")
 				     +cvtToStr(m_modp->varNumGetInc()));
 		AstVar* newvarp
                     = new AstVar(nodep->fileline(), AstVarType::XTEMP, newvarname,

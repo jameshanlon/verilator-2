@@ -30,14 +30,13 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <map>
 
 #include "V3Global.h"
 #include "V3Coverage.h"
 #include "V3Ast.h"
+
+#include <cstdarg>
+#include <map>
 
 //######################################################################
 // Coverage state, as a visitor of each AstNode
@@ -162,7 +161,7 @@ private:
 		//	We'll do this, and make the if(...) coverinc later.
 
 		// Add signal to hold the old value
-		string newvarname = (string)"__Vtogcov__"+nodep->shortName();
+                string newvarname = string("__Vtogcov__")+nodep->shortName();
                 AstVar* chgVarp = new AstVar(nodep->fileline(), AstVarType::MODULETEMP, newvarname, nodep);
 		chgVarp->fileline()->modifyWarnOff(V3ErrorCode::UNUSED, true);
 		m_modp->addStmtp(chgVarp);
@@ -181,9 +180,7 @@ private:
 	}
     }
 
-    void toggleVarBottom(AstNodeDType* dtypep, int depth, // per-iteration
-		     const ToggleEnt& above,
-		     AstVar* varp, AstVar* chgVarp) { // Constant
+    void toggleVarBottom(const ToggleEnt& above, const AstVar* varp) {
 	AstCoverToggle* newp
             = new AstCoverToggle(varp->fileline(),
                                  newCoverInc(varp->fileline(), "", "v_toggle",
@@ -203,15 +200,11 @@ private:
 		    ToggleEnt newent (above.m_comment+string("[")+cvtToStr(index_docs)+"]",
 				      new AstSel(varp->fileline(), above.m_varRefp->cloneTree(true), index_code, 1),
 				      new AstSel(varp->fileline(), above.m_chgRefp->cloneTree(true), index_code, 1));
-		    toggleVarBottom(dtypep, depth+1,
-				    newent,
-				    varp, chgVarp);
+                    toggleVarBottom(newent, varp);
 		    newent.cleanup();
 		}
 	    } else {
-		toggleVarBottom(dtypep, depth+1,
-				above,
-				varp, chgVarp);
+                toggleVarBottom(above, varp);
 	    }
 	}
         else if (AstUnpackArrayDType* adtypep = VN_CAST(dtypep, UnpackArrayDType)) {

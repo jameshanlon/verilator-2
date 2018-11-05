@@ -25,15 +25,14 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <algorithm>
 
 #include "V3Global.h"
 #include "V3Name.h"
 #include "V3Ast.h"
 #include "V3LanguageWords.h"
+
+#include <algorithm>
+#include <cstdarg>
 
 //######################################################################
 // Name state, as a visitor of each AstNode
@@ -57,13 +56,13 @@ private:
     void rename(AstNode* nodep, bool addPvt) {
 	if (!nodep->user1()) {  // Not already done
 	    if (addPvt) {
-		string newname = (string)"__PVT__"+nodep->name();
+                string newname = string("__PVT__")+nodep->name();
 		nodep->name(newname);
 	    } else {
 		string rsvd = m_words.isKeyword(nodep->name());
 		if (rsvd != "") {
 		    nodep->v3warn(SYMRSVDWORD,"Symbol matches "+rsvd+": '"<<nodep->prettyName()<<"'");
-		    string newname = (string)"__SYM__"+nodep->name();
+                    string newname = string("__SYM__")+nodep->name();
 		    nodep->name(newname);
 		}
 	    }

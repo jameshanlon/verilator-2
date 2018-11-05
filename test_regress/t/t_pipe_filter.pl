@@ -9,7 +9,6 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 
 scenarios(vlt => 1);
 
-$Self->{golden_out} ||= "t/$Self->{name}.out";
 my $stdout_filename = "$Self->{obj_dir}/$Self->{name}__test.vpp";
 
 compile(
@@ -17,6 +16,8 @@ compile(
     verilator_make_gcc => 0,
     stdout_filename => $stdout_filename,
     );
-ok(files_identical($stdout_filename, $Self->{golden_out}));
 
+files_identical($stdout_filename, $Self->{golden_filename});
+
+ok(1);
 1;

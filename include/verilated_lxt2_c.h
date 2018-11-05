@@ -25,11 +25,12 @@
 
 #include "verilatedos.h"
 #include "verilated.h"
-#include "lxt2/lxt2_write.h"
 
+#include "gtkwave/lxt2_write.h"
+
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
 
 class VerilatedLxt2;
 class VerilatedLxt2CallInfo;
@@ -69,10 +70,10 @@ public:
         lxt2_wr_close(m_lxt2);
         m_lxt2 = NULL;
     }
-    // void set_time_unit(const char* unit); ///< Set time units (s/ms, defaults to ns)
+    // void set_time_unit(const char* unitp);  ///< Set time units (s/ms, defaults to ns)
     // void set_time_unit(const std::string& unit) { set_time_unit(unit.c_str()); }
 
-    // void set_time_resolution(const char* unit); ///< Set time resolution (s/ms, defaults to ns)
+    // void set_time_resolution(const char* unitp);  ///< Set time resolution (s/ms, defaults to ns)
     // void set_time_resolution(const std::string& unit) { set_time_resolution(unit.c_str()); }
 
     // double timescaleToDouble(const char* unitp);
@@ -85,30 +86,30 @@ public:
     /// Inside dumping routines, called each cycle to make the dump
     void dump(vluint64_t timeui);
     /// Inside dumping routines, declare callbacks for tracings
-    void addCallback(VerilatedLxt2Callback_t init, VerilatedLxt2Callback_t full,
-                     VerilatedLxt2Callback_t change,
+    void addCallback(VerilatedLxt2Callback_t initcb, VerilatedLxt2Callback_t fullcb,
+                     VerilatedLxt2Callback_t changecb,
                      void* userthis) VL_MT_UNSAFE_ONE;
 
     /// Inside dumping routines, declare a module
     void module(const std::string& name);
     /// Inside dumping routines, declare a signal
     void declBit(vluint32_t code, const char* name, int arraynum) {
-        this->declSymbol(code, name, arraynum, 0, 0, LXT2_WR_SYM_F_BITS);
+        declSymbol(code, name, arraynum, 0, 0, LXT2_WR_SYM_F_BITS);
     }
     void declBus(vluint32_t code, const char* name, int arraynum, int msb, int lsb) {
-        this->declSymbol(code, name, arraynum, msb, lsb, LXT2_WR_SYM_F_BITS);
+        declSymbol(code, name, arraynum, msb, lsb, LXT2_WR_SYM_F_BITS);
     }
     void declDouble(vluint32_t code, const char* name, int arraynum) {
-        this->declSymbol(code, name, arraynum, 63, 0, LXT2_WR_SYM_F_DOUBLE);
+        declSymbol(code, name, arraynum, 63, 0, LXT2_WR_SYM_F_DOUBLE);
     }
     void declFloat(vluint32_t code, const char* name, int arraynum) {
-        this->declSymbol(code, name, arraynum, 63, 0, LXT2_WR_SYM_F_DOUBLE);
+        declSymbol(code, name, arraynum, 63, 0, LXT2_WR_SYM_F_DOUBLE);
     }
     void declQuad(vluint32_t code, const char* name, int arraynum, int msb, int lsb) {
-        this->declSymbol(code, name, arraynum, msb, lsb, LXT2_WR_SYM_F_BITS);
+        declSymbol(code, name, arraynum, msb, lsb, LXT2_WR_SYM_F_BITS);
     }
     void declArray(vluint32_t code, const char* name, int arraynum, int msb, int lsb) {
-        this->declSymbol(code, name, arraynum, msb, lsb, LXT2_WR_SYM_F_BITS);
+        declSymbol(code, name, arraynum, msb, lsb, LXT2_WR_SYM_F_BITS);
     }
 
     /// Inside dumping routines, dump one signal if it has changed

@@ -20,14 +20,6 @@
 
 #include "config_build.h"
 #include "verilatedos.h"
-#include <cstdio>
-#include <cstdarg>
-#include <unistd.h>
-#include <cmath>
-#include <map>
-#include <vector>
-#include <algorithm>
-#include VL_INCLUDE_UNORDERED_SET
 
 #include "V3Global.h"
 #include "V3String.h"
@@ -36,6 +28,13 @@
 #include "V3Number.h"
 #include "V3PartitionGraph.h"
 #include "V3TSP.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdarg>
+#include <map>
+#include <vector>
+#include VL_INCLUDE_UNORDERED_SET
 
 #define VL_VALUE_STRING_MAX_WIDTH 8192	// We use a static char array in VL_VALUE_STRING
 
@@ -233,7 +232,7 @@ public:
 	nodep->v3fatalSrc("Case statements should have been reduced out");
     }
     virtual void visit(AstComment* nodep) {
-	putsDecoration((string)"// "+nodep->name()+" at "+nodep->fileline()->ascii()+"\n");
+        putsDecoration(string("// ")+nodep->name()+" at "+nodep->fileline()->ascii()+"\n");
         iterateChildren(nodep);
     }
     virtual void visit(AstCoverDecl* nodep) {
@@ -586,8 +585,8 @@ public:
     }
     virtual void visit(AstReplicate* nodep) {
 	if (nodep->lhsp()->widthMin() == 1 && !nodep->isWide()) {
-            if (((int)VN_CAST(nodep->rhsp(), Const)->toUInt()
-		     * nodep->lhsp()->widthMin()) != nodep->widthMin())
+            if ((static_cast<int>(VN_CAST(nodep->rhsp(), Const)->toUInt())
+                 * nodep->lhsp()->widthMin()) != nodep->widthMin())
 		nodep->v3fatalSrc("Replicate non-constant or width miscomputed");
 	    puts("VL_REPLICATE_");
 	    emitIQW(nodep);
@@ -688,7 +687,9 @@ public:
 		}
 		for (int word=VL_WORDS_I(upWidth)-1; word>=0; word--) {
 		    // Only 32 bits - llx + long long here just to appease CPP format warning
-		    ofp()->printf(",0x%08" VL_PRI64 "x", (vluint64_t)(nodep->num().dataWord(word+chunks*EMITC_NUM_CONSTW)));
+                    ofp()->printf(",0x%08" VL_PRI64 "x",
+                                  static_cast<vluint64_t>(nodep->num().dataWord
+                                                          (word+chunks*EMITC_NUM_CONSTW)));
 		}
 		puts(")");
 	    }
@@ -709,7 +710,9 @@ public:
 		}
 		for (int word=EMITC_NUM_CONSTW-1; word>=0; word--) {
 		    // Only 32 bits - llx + long long here just to appease CPP format warning
-		    ofp()->printf(",0x%08" VL_PRI64 "x", (vluint64_t)(nodep->num().dataWord(word+chunks*EMITC_NUM_CONSTW)));
+                    ofp()->printf(",0x%08" VL_PRI64 "x",
+                                  static_cast<vluint64_t>(nodep->num().dataWord
+                                                          (word+chunks*EMITC_NUM_CONSTW)));
 		}
 		puts(")");
 	    }
@@ -731,7 +734,7 @@ public:
 	    uint32_t num = nodep->toUInt();
 	    // Only 32 bits - llx + long long here just to appease CPP format warning
 	    if (num<10) puts(cvtToStr(num));
-	    else ofp()->printf("0x%" VL_PRI64 "x", (vluint64_t)num);
+            else ofp()->printf("0x%" VL_PRI64 "x", static_cast<vluint64_t>(num));
 	    // If signed, we'll do our own functions
 	    // But must be here, or <= comparisons etc may end up signed
 	    puts("U");
@@ -776,7 +779,7 @@ public:
     virtual void visit(AstCFile*) {}		// Handled outside the Visit class
     // Default
     virtual void visit(AstNode* nodep) {
-	puts((string)"\n???? // "+nodep->prettyTypeName()+"\n");
+        puts(string("\n???? // ")+nodep->prettyTypeName()+"\n");
         iterateChildren(nodep);
 	nodep->v3fatalSrc("Unknown node type reached emitter: "<<nodep->prettyTypeName());
     }
@@ -849,6 +852,7 @@ class EmitCImp : EmitCStmts {
     // METHODS
 
     void doubleOrDetect(AstChangeDet* changep, bool& gotOne) {
+        static int s_addDoubleOr = 10;  // Determined experimentally as best
 	if (!changep->rhsp()) {
 	    if (!gotOne) gotOne = true;
 	    else puts(" | ");
@@ -857,17 +861,18 @@ class EmitCImp : EmitCStmts {
 	else {
 	    AstNode* lhsp = changep->lhsp();
 	    AstNode* rhsp = changep->rhsp();
-	    static int addDoubleOr = 10;	// Determined experimentally as best
             if (!VN_IS(lhsp, VarRef) && !VN_IS(lhsp, ArraySel)) changep->v3fatalSrc("Not ref?");
             if (!VN_IS(rhsp, VarRef) && !VN_IS(rhsp, ArraySel)) changep->v3fatalSrc("Not ref?");
-	    for (int word=0; word<changep->lhsp()->widthWords(); word++) {
+            for (int word=0;
+                 word < (changep->lhsp()->isWide() ? changep->lhsp()->widthWords() : 1);
+                 ++word) {
 		if (!gotOne) {
 		    gotOne = true;
-		    addDoubleOr = 10;	// Determined experimentally as best
+                    s_addDoubleOr = 10;
 		    puts("(");
-		} else if (--addDoubleOr == 0) {
+                } else if (--s_addDoubleOr == 0) {
 		    puts("|| (");
-		    addDoubleOr = 10;
+                    s_addDoubleOr = 10;
 		} else {
 		    puts(" | (");
 		}
@@ -1081,8 +1086,8 @@ class EmitCImp : EmitCStmts {
 	    }
 	}
 	if (gotOne) {
-	    puts(");\n");
-	    //puts("VL_DEBUG_IF( if (__req) cout<<\"\tCLOCKREQ );");
+            puts(");\n");
+            //puts("VL_DEBUG_IF( if (__req) cout<<\"- CLOCKREQ );");
             for (std::vector<AstChangeDet*>::iterator it = m_blkChangeDetVec.begin();
 		 it != m_blkChangeDetVec.end(); ++it) {
 		AstChangeDet* nodep = *it;
@@ -1163,7 +1168,7 @@ class EmitCImp : EmitCStmts {
 
     // METHODS
     // Low level
-    void emitVarReset(AstVar* modp);
+    void emitVarReset(AstVar* varp);
     void emitCellCtors(AstNodeModule* modp);
     void emitSensitives();
     // Medium level
@@ -1206,13 +1211,13 @@ void EmitCStmts::emitVarDecl(const AstVar* nodep, const string& prefixIfImp) {
     if (nodep->isIO()) {
 	if (nodep->isSc()) {
 	    m_ctorVarsVec.push_back(nodep);
-	    if (nodep->attrScClocked() && nodep->isInput()) {
-		puts("sc_in_clk ");
-	    } else {
-		if (nodep->isInout()) puts("sc_inout<");
-		else if (nodep->isInput()) puts("sc_in<");
-		else if (nodep->isOutput()) puts("sc_out<");
-		else nodep->v3fatalSrc("Unknown type");
+            if (nodep->attrScClocked() && nodep->isReadOnly()) {
+                puts("sc_in_clk ");
+            } else {
+                if (nodep->isInoutish()) puts("sc_inout<");
+                else if (nodep->isWritable()) puts("sc_out<");
+                else if (nodep->isNonOutput()) puts("sc_in<");
+                else nodep->v3fatalSrc("Unknown type");
 
 		puts(nodep->scType());
 		puts("> ");
@@ -1225,11 +1230,11 @@ void EmitCStmts::emitVarDecl(const AstVar* nodep, const string& prefixIfImp) {
 	    puts(nodep->vlArgType(true,false,false));
 	    emitDeclArrayBrackets(nodep);
 	    puts(";\n");
-	} else { // C++ signals
-	    if (nodep->isInout()) puts("VL_INOUT");
-	    else if (nodep->isInput()) puts("VL_IN");
-	    else if (nodep->isOutput()) puts("VL_OUT");
-	    else nodep->v3fatalSrc("Unknown type");
+        } else {  // C++ signals
+            if (nodep->isInoutish()) puts("VL_INOUT");
+            else if (nodep->isWritable()) puts("VL_OUT");
+            else if (nodep->isNonOutput()) puts("VL_IN");
+            else nodep->v3fatalSrc("Unknown type");
 
 	    if (nodep->isQuad()) puts("64");
 	    else if (nodep->widthMin() <= 8) puts("8");
@@ -1335,7 +1340,7 @@ void EmitCStmts::emitOpName(AstNode* nodep, const string& format,
     //	,	Commas suppressed if the previous field is suppressed
     string nextComma;
     bool needComma = false;
-#define COMMA { if (nextComma!="") { puts(nextComma); nextComma=""; } }
+#define COMMA { if (!nextComma.empty()) { puts(nextComma); nextComma=""; } }
 
     putbs("");
     for (string::const_iterator pos = format.begin(); pos != format.end(); ++pos) {
@@ -1557,11 +1562,11 @@ void EmitCStmts::displayNode(AstNode* nodep, AstScopeName* scopenamep,
     // Convert Verilog display to C printf formats
     // 		"%0t" becomes "%d"
     emitDispState.clear();
-    string vfmt = "";
+    string vfmt;
     string::const_iterator pos = vformat.begin();
     bool inPct = false;
     for (; pos != vformat.end(); ++pos) {
-	//UINFO(1,"Parse '"<<*pos<<"'  IP"<<inPct<<" List "<<(void*)(elistp)<<endl);
+        //UINFO(1,"Parse '"<<*pos<<"'  IP"<<inPct<<" List "<<cvtToHex(elistp)<<endl);
 	if (!inPct && pos[0]=='%') {
 	    inPct = true;
 	    vfmt = "";
@@ -1674,7 +1679,8 @@ void EmitCImp::emitVarReset(AstVar* varp) {
 	}
 	bool zeroit = (varp->attrFileDescr() // Zero it out, so we don't core dump if never call $fopen
 		       || (varp->basicp() && varp->basicp()->isZeroInit())
-		       || (varp->name().size()>=1 && varp->name()[0]=='_' && v3Global.opt.underlineZero())
+                       || (v3Global.opt.underlineZero()
+                           && !varp->name().empty() && varp->name()[0]=='_')
 		       || (v3Global.opt.xInitial() == "fast" || v3Global.opt.xInitial() == "0"));
 	if (varp->isWide()) {
 	    // DOCUMENT: We randomize everything.  If the user wants a _var to be zero,
@@ -1864,6 +1870,7 @@ void EmitCImp::emitSavableImp(AstNodeModule* modp) {
 	    string funcname = de ? "__Vdeserialize" : "__Vserialize";
 	    string writeread = de ? "read" : "write";
 	    string op = de ? ">>" : "<<";
+            // NOLINTNEXTLINE(performance-inefficient-string-concatenation)
 	    puts("void "+modClassName(modp)+"::"+funcname+"("+classname+"& os) {\n");
 	    // Place a computed checksum to insure proper structure save/restore formatting
 	    // OK if this hash includes some things we won't dump, since just looking for loading the wrong model
@@ -1875,7 +1882,7 @@ void EmitCImp::emitSavableImp(AstNodeModule* modp) {
 		}
 	    }
 	    ofp()->printf(   "vluint64_t __Vcheckval = VL_ULL(0x%" VL_PRI64 "x);\n",
-                             (vluint64_t)hash.digestUInt64());
+                             static_cast<vluint64_t>(hash.digestUInt64()));
 	    if (de) {
 		puts("os.readAssert(__Vcheckval);\n");
 	    } else {
@@ -1983,9 +1990,10 @@ void EmitCImp::emitSensitives() {
 	puts("SC_METHOD(eval);\n");
 	for (AstNode* nodep=m_modp->stmtsp(); nodep; nodep = nodep->nextp()) {
             if (const AstVar* varp = VN_CAST(nodep, Var)) {
-		if (varp->isInput() && (varp->isScSensitive() || varp->isUsedClock())) {
-		    int vects = 0;
-		    // This isn't very robust and may need cleanup for other data types
+                if (varp->isNonOutput() && (varp->isScSensitive()
+                                            || varp->isUsedClock())) {
+                    int vects = 0;
+                    // This isn't very robust and may need cleanup for other data types
                     for (AstUnpackArrayDType* arrayp=VN_CAST(varp->dtypeSkipRefp(), UnpackArrayDType);
                          arrayp;
                          arrayp = VN_CAST(arrayp->subDTypep()->skipRefp(), UnpackArrayDType)) {
@@ -2240,7 +2248,7 @@ void EmitCStmts::emitVarSort(const VarSortMap& vmap, VarVec* sortedp) {
 void EmitCStmts::emitSortedVarList(const VarVec& anons,
                                    const VarVec& nonanons,
                                    const string& prefixIfImp) {
-    string curVarCmt = "";
+    string curVarCmt;
     // Output anons
     {
         int anonMembers = anons.size();
@@ -2601,11 +2609,8 @@ void EmitCImp::emitInt(AstNodeModule* modp) {
 //----------------------------------------------------------------------
 
 void EmitCImp::emitImp(AstNodeModule* modp) {
-    ofp()->printf("#include \"%-20s // For This\n",
-		  (modClassName(modp)+".h\"").c_str());
-
-    // Us
-    puts("#include \""+ symClassName() +".h\"\n");
+    puts("#include \""+modClassName(modp)+".h\"\n");
+    puts("#include \""+symClassName()+".h\"\n");
 
     if (v3Global.dpi()) {
 	puts("\n");
@@ -2713,8 +2718,15 @@ void EmitCImp::main(AstNodeModule* modp, bool slow, bool fast) {
 // Tracing routines
 
 class EmitCTrace : EmitCStmts {
+    // NODE STATE/TYPES
+    // Cleared on netlist
+    //  AstNode::user1()        -> int.  Enum number
+    AstUser1InUse m_inuser1;
+
+    // MEMBERS
     AstCFunc*	m_funcp;	// Function we're in now
     bool	m_slow;		// Making slow file
+    int         m_enumNum;      // Enumeration number (whole netlist)
 
     // METHODS
     void newOutCFile(int filenum) {
@@ -2817,22 +2829,77 @@ class EmitCTrace : EmitCStmts {
 	return varp->isSc() && varp->isScUint();
     }
 
-    void emitTraceInitOne(AstTraceDecl* nodep) {
+    void emitTraceInitOne(AstTraceDecl* nodep, int enumNum) {
 	if (nodep->dtypep()->basicp()->isDouble()) {
 	    puts("vcdp->declDouble");
 	} else if (nodep->isWide()) {
 	    puts("vcdp->declArray");
 	} else if (nodep->isQuad()) {
-	    puts("vcdp->declQuad ");
+            puts("vcdp->declQuad");
 	} else if (nodep->bitRange().ranged()) {
-	    puts("vcdp->declBus  ");
+            puts("vcdp->declBus");
 	} else {
-	    puts("vcdp->declBit  ");
+            puts("vcdp->declBit");
 	}
+
 	puts("(c+"+cvtToStr(nodep->code()));
 	if (nodep->arrayRange().ranged()) puts("+i*"+cvtToStr(nodep->widthWords()));
 	puts(",");
 	putsQuoted(nodep->showname());
+        // Direction
+        if (v3Global.opt.traceFormat() == TraceFormat::FST) {
+            puts(","+cvtToStr(enumNum));
+            // fstVarDir
+            if (nodep->declDirection().isInoutish()) puts(",FST_VD_INOUT");
+            else if (nodep->declDirection().isWritable()) puts(",FST_VD_OUTPUT");
+            else if (nodep->declDirection().isNonOutput()) puts(",FST_VD_INPUT");
+            else puts(",FST_VD_IMPLICIT");
+            //
+            // fstVarType
+            AstVarType vartype = nodep->varType();
+            AstBasicDTypeKwd kwd = nodep->declKwd();
+            string fstvt;
+            // Doubles have special decoding properties, so must indicate if a double
+            if (nodep->dtypep()->basicp()->isDouble()) {
+                if (vartype == AstVarType::GPARAM || vartype == AstVarType::LPARAM) {
+                    fstvt = "FST_VT_VCD_REAL_PARAMETER";
+                } else fstvt = "FST_VT_VCD_REAL";
+            }
+            else if (vartype == AstVarType::GPARAM)  fstvt = "FST_VT_VCD_PARAMETER";
+            else if (vartype == AstVarType::LPARAM)  fstvt = "FST_VT_VCD_PARAMETER";
+            else if (vartype == AstVarType::SUPPLY0) fstvt = "FST_VT_VCD_SUPPLY0";
+            else if (vartype == AstVarType::SUPPLY1) fstvt = "FST_VT_VCD_SUPPLY1";
+            else if (vartype == AstVarType::TRI0)    fstvt = "FST_VT_VCD_TRI0";
+            else if (vartype == AstVarType::TRI1)    fstvt = "FST_VT_VCD_TRI1";
+            else if (vartype == AstVarType::TRIWIRE) fstvt = "FST_VT_VCD_TRI";
+            else if (vartype == AstVarType::WIRE)    fstvt = "FST_VT_VCD_WIRE";
+            else if (vartype == AstVarType::PORT)    fstvt = "FST_VT_VCD_WIRE";
+            //
+            else if (kwd == AstBasicDTypeKwd::INTEGER)  fstvt = "FST_VT_VCD_INTEGER";
+            else if (kwd == AstBasicDTypeKwd::BIT)      fstvt = "FST_VT_SV_BIT";
+            else if (kwd == AstBasicDTypeKwd::LOGIC)    fstvt = "FST_VT_SV_LOGIC";
+            else if (kwd == AstBasicDTypeKwd::INT)      fstvt = "FST_VT_SV_INT";
+            else if (kwd == AstBasicDTypeKwd::SHORTINT) fstvt = "FST_VT_SV_SHORTINT";
+            else if (kwd == AstBasicDTypeKwd::LONGINT)  fstvt = "FST_VT_SV_LONGINT";
+            else if (kwd == AstBasicDTypeKwd::BYTE)     fstvt = "FST_VT_SV_BYTE";
+            else fstvt = "FST_VT_SV_BIT";
+            //
+            // Not currently supported
+            // FST_VT_VCD_EVENT
+            // FST_VT_VCD_PORT
+            // FST_VT_VCD_SHORTREAL
+            // FST_VT_VCD_REALTIME
+            // FST_VT_VCD_SPARRAY
+            // FST_VT_VCD_TRIAND
+            // FST_VT_VCD_TRIOR
+            // FST_VT_VCD_TRIREG
+            // FST_VT_VCD_WAND
+            // FST_VT_VCD_WOR
+            // FST_VT_SV_ENUM
+            // FST_VT_GEN_STRING
+            puts(","+fstvt);
+        }
+        // Range
 	if (nodep->arrayRange().ranged()) {
 	    puts(",(i+"+cvtToStr(nodep->arrayRange().lo())+")");
 	} else {
@@ -2843,6 +2910,49 @@ class EmitCTrace : EmitCStmts {
 	    puts(","+cvtToStr(nodep->bitRange().left())+","+cvtToStr(nodep->bitRange().right()));
 	}
 	puts(");");
+    }
+
+    int emitTraceDeclDType(AstNodeDType* nodep) {
+        // Return enum number or -1 for none
+        if (v3Global.opt.traceFormat() == TraceFormat::FST) {
+            // Skip over refs-to-refs, but stop before final ref so can get data type name
+            // Alternatively back in V3Width we could have push enum names from upper typedefs
+            if (AstEnumDType* enump = VN_CAST(nodep->skipRefToEnump(), EnumDType)) {
+                int enumNum = enump->user1();
+                if (!enumNum) {
+                    enumNum = ++m_enumNum;
+                    enump->user1(enumNum);
+                    int nvals = 0;
+                    puts("{\n");
+                    puts("const char* __VenumItemNames[]\n");
+                    puts("= {");
+                    for (AstEnumItem* itemp = enump->itemsp(); itemp;
+                         itemp=VN_CAST(itemp->nextp(), EnumItem)) {
+                        if (++nvals > 1) puts(", ");
+                        putbs("\""+itemp->prettyName()+"\"");
+                    }
+                    puts("};\n");
+                    nvals = 0;
+                    puts("const char* __VenumItemValues[]\n");
+                    puts("= {");
+                    for (AstEnumItem* itemp = enump->itemsp(); itemp;
+                         itemp=VN_CAST(itemp->nextp(), EnumItem)) {
+                        AstConst* constp = VN_CAST(itemp->valuep(), Const);
+                        if (++nvals > 1) puts(", ");
+                        putbs("\""+constp->num().displayed(nodep->fileline(), "%0b")+"\"");
+                    }
+                    puts("};\n");
+                    puts("vcdp->declDTypeEnum("+cvtToStr(enumNum)
+                         +", \""+enump->prettyName()+"\", "
+                         +cvtToStr(nvals)
+                         +", "+cvtToStr(enump->widthMin())
+                         +", __VenumItemNames, __VenumItemValues);\n");
+                    puts("}\n");
+                }
+                return enumNum;
+            }
+        }
+        return -1;
     }
 
     void emitTraceChangeOne(AstTraceInc* nodep, int arrayindex) {
@@ -2857,15 +2967,15 @@ class EmitCTrace : EmitCStmts {
 	    puts("vcdp->"+full+"Array");
             emitWidth = true;
 	} else if (nodep->isQuad()) {
-	    puts("vcdp->"+full+"Quad ");
+            puts("vcdp->"+full+"Quad");
             emitWidth = true;
         } else if (nodep->declp()->bitRange().ranged()
                    // 1 element smaller to use Bit dump
                    && nodep->declp()->bitRange().elements() != 1) {
-	    puts("vcdp->"+full+"Bus  ");
+            puts("vcdp->"+full+"Bus");
             emitWidth = true;
 	} else {
-	    puts("vcdp->"+full+"Bit  ");
+            puts("vcdp->"+full+"Bit");
 	}
 	puts("(c+"+cvtToStr(nodep->declp()->code()
 			    + ((arrayindex<0) ? 0 : (arrayindex*nodep->declp()->widthWords()))));
@@ -2958,12 +3068,13 @@ class EmitCTrace : EmitCStmts {
 	m_funcp = NULL;
     }
     virtual void visit(AstTraceDecl* nodep) {
+        int enumNum = emitTraceDeclDType(nodep->dtypep());
 	if (nodep->arrayRange().ranged()) {
 	    puts("{int i; for (i=0; i<"+cvtToStr(nodep->arrayRange().elements())+"; i++) {\n");
-	    emitTraceInitOne(nodep);
+            emitTraceInitOne(nodep, enumNum);
 	    puts("}}\n");
 	} else {
-	    emitTraceInitOne(nodep);
+            emitTraceInitOne(nodep, enumNum);
 	    puts("\n");
 	}
     }
@@ -2986,6 +3097,7 @@ public:
     explicit EmitCTrace(bool slow) {
 	m_funcp = NULL;
 	m_slow = slow;
+        m_enumNum = 0;
     }
     virtual ~EmitCTrace() {}
     void main() {

@@ -24,11 +24,11 @@
 #include "verilated.h"
 #include "verilated_vcd_c.h"
 
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <algorithm>
 #include <cerrno>
 #include <ctime>
-#include <algorithm>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 #if defined(_WIN32) && !defined(__MINGW32__) && !defined(__CYGWIN__)
 # include <io.h>
@@ -43,6 +43,9 @@
 #endif
 #ifndef O_NONBLOCK
 # define O_NONBLOCK 0
+#endif
+#ifndef O_CLOEXEC
+# define O_CLOEXEC 0
 #endif
 
 //=============================================================================
@@ -109,7 +112,7 @@ protected:
 // VerilatedVcdFile
 
 bool VerilatedVcdFile::open(const std::string& name) VL_MT_UNSAFE {
-    m_fd = ::open(name.c_str(), O_CREAT|O_WRONLY|O_TRUNC|O_LARGEFILE|O_NONBLOCK, 0666);
+    m_fd = ::open(name.c_str(), O_CREAT|O_WRONLY|O_TRUNC|O_LARGEFILE|O_NONBLOCK|O_CLOEXEC, 0666);
     return (m_fd>=0);
 }
 
@@ -182,7 +185,7 @@ void VerilatedVcd::openNext(bool incFilename) {
     if (incFilename) {
         // Find _0000.{ext} in filename
         std::string name = m_filename;
-        size_t pos=name.rfind(".");
+        size_t pos = name.rfind('.');
         if (pos>8 && 0==strncmp("_cat",name.c_str()+pos-8,4)
             && isdigit(name.c_str()[pos-4])
             && isdigit(name.c_str()[pos-3])
@@ -227,7 +230,7 @@ void VerilatedVcd::makeNameMap() {
     for (vluint32_t ent = 0; ent< m_callbacks.size(); ent++) {
         VerilatedVcdCallInfo* cip = m_callbacks[ent];
         cip->m_code = m_nextCode;
-        (cip->m_initcb) (this, cip->m_userthis, cip->m_code);
+        (cip->m_initcb)(this, cip->m_userthis, cip->m_code);
     }
 
     // Though not speced, it's illegal to generate a vcd with signals
@@ -237,7 +240,7 @@ void VerilatedVcd::makeNameMap() {
     bool nullScope = false;
     for (NameMap::const_iterator it=m_namemapp->begin(); it!=m_namemapp->end(); ++it) {
         const std::string& hiername = it->first;
-        if (hiername.size() >= 1 && hiername[0] == '\t') nullScope=true;
+        if (!hiername.empty() && hiername[0] == '\t') nullScope=true;
     }
     if (nullScope) {
         NameMap* newmapp = new NameMap;
@@ -546,13 +549,15 @@ void VerilatedVcd::declare(vluint32_t code, const char* name, const char* wirep,
     // Tab sorts before spaces, so signals nicely will print before scopes
     // Note the hiername may be nothing, if so we'll add "\t{name}"
     std::string nameasstr = name;
-    if (m_modName!="") { nameasstr = m_modName+m_scopeEscape+nameasstr; }  // Optional ->module prefix
+    if (!m_modName.empty()) {
+        nameasstr = m_modName+m_scopeEscape+nameasstr;  // Optional ->module prefix
+    }
     std::string hiername;
     std::string basename;
     for (const char* cp=nameasstr.c_str(); *cp; cp++) {
         if (isScopeEscape(*cp)) {
             // Ahh, we've just read a scope, not a basename
-            if (hiername!="") hiername += " ";
+            if (!hiername.empty()) hiername += " ";
             hiername += basename;
             basename = "";
         } else {
