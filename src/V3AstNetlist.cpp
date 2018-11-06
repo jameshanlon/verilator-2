@@ -240,34 +240,53 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
   int n = 1; // Vertex 0 is the NULL ID.
   // Print vertices.
   for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {
-    *logp << "VERTEX " << std::dec << n << " ";
+    *logp << "VERTEX " << std::dec << n;
+    // ## Any variable except destination reg.
     if (AstNetlistVarVertex* vvertexp = dynamic_cast<AstNetlistVarVertex*>(vertexp)) {
       const std::string &prettyName = vvertexp->varScp()->prettyName();
       AstVarType varType = vvertexp->varScp()->varp()->varType();
+      VDirection varDir = vvertexp->varScp()->varp()->direction();
       FileLine *fileLine = vvertexp->varScp()->fileline();
+      // Type
       bool isReg = regs.count(prettyName);
-      *logp << (isReg ? "REG_SRC" : "VAR");
-      if (!isReg && varType != AstVarType::VAR &&
-                    varType != AstVarType::MODULETEMP &&
-                    varType != AstVarType::BLOCKTEMP)
-        *logp << "_" << varType;
+      if (isReg) {
+        *logp << " REG_SRC";
+      } else {
+        if (varType == AstVarType::MODULETEMP ||
+            varType == AstVarType::BLOCKTEMP) {
+          *logp << " VAR";
+        } else {
+          *logp << " " << varType;
+        }
+      }
+      // Direction
+      *logp << " " << varDir.ascii();
+      // Name
       *logp << " " << prettyName;
-      *logp << " @ " << fileLine->ascii();
+      // Location
+      *logp << " " << fileLine->ascii();
+    // ## Destination reg
     } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
       AstVarType varType = vvertexp->varScp()->varp()->varType();
-      VDirection varDir = vvertexp->varScp()->varp()->declDirection();
+      VDirection varDir = vvertexp->varScp()->varp()->direction();
       FileLine *fileLine = vvertexp->varScp()->fileline();
       assert (varType == AstVarType::VAR ||
+              varType == AstVarType::PORT ||
               varType == AstVarType::MODULETEMP ||
-              varType == AstVarType::BLOCKTEMP ||
-              varDir == VDirection::OUTPUT);
-      *logp << "REG_DST" << (varDir == VDirection::OUTPUT ? "_OUTPUT" : "");
+              varType == AstVarType::BLOCKTEMP);
+      // Type
+      *logp << " REG_DST";
+      // Direction
+      *logp << " " << varDir.ascii();
+      // Name
       *logp << " " << vvertexp->varScp()->prettyName();
-      *logp << " @ " << fileLine->ascii();
+      // Location
+      *logp << " " << fileLine->ascii();
+    // ## Logic vertex
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
       FileLine *fileLine = vvertexp->nodep()->fileline();
-      *logp << vvertexp->nodep()->typeName();
-      *logp << " @ " << fileLine->ascii();
+      *logp << " " << vvertexp->nodep()->typeName();
+      *logp << " " << fileLine->ascii();
     }
     *logp << "\n";
     numMap[vertexp] = n++;
