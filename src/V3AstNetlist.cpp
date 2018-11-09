@@ -13,8 +13,7 @@
 
 class AstNetlistGraph : public V3Graph {
 public:
-  void dumpNetlistGraphFile(const std::unordered_set<std::string> regs,
-                            const string &filename) const;
+  void dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const;
 };
 
 class AstNetlistEitherVertex : public V3GraphVertex {
@@ -110,7 +109,7 @@ public:
   }
   virtual void visit(AstNetlist *nodep) {
     iterateChildren(nodep);
-    graph.dumpNetlistGraphFile(regs, "netlist.graph");
+    graph.dumpNetlistDotFile(regs);
     UINFO(1, "DONE!" << endl);
   }
   virtual void visit(AstNodeModule *nodep) {
@@ -231,42 +230,44 @@ public:
   }
 };
 
-void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string> regs,
-                                           const string& filename) const {
+void AstNetlistGraph::
+dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const {
   const vl_unique_ptr<std::ofstream> logp (V3File::new_ofstream(v3Global.opt.exeName()));
   if (logp->fail())
-    v3fatalSrc("Can't write "<<filename);
+    v3fatalSrc("Can't write "<<v3Global.opt.exeName());
   std::map <V3GraphVertex*, int> numMap;
-  int n = 1; // Vertex 0 is the NULL ID.
-  // Print vertices.
+  int n = 0;
+  // Header.
+  *logp << "digraph netlist {\n";
   for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {
-    *logp << "VERTEX " << std::dec << n;
-    // ## Any variable except destination reg.
+    *logp << "  n" << std::dec << n << "[id=" << n; // Begin node.
     if (AstNetlistVarVertex* vvertexp = dynamic_cast<AstNetlistVarVertex*>(vertexp)) {
+      // ## Any variable except destination reg.
       const std::string &prettyName = vvertexp->varScp()->prettyName();
       AstVarType varType = vvertexp->varScp()->varp()->varType();
       VDirection varDir = vvertexp->varScp()->varp()->direction();
       FileLine *fileLine = vvertexp->varScp()->fileline();
       // Type
-      bool isReg = regs.count(prettyName);
-      if (isReg) {
-        *logp << " REG_SRC";
+      *logp << ", type=\"";
+      if (regs.count(prettyName)) {
+        *logp << "REG_SRC";
       } else {
         if (varType == AstVarType::MODULETEMP ||
             varType == AstVarType::BLOCKTEMP) {
-          *logp << " VAR";
+          *logp << "VAR";
         } else {
-          *logp << " " << varType;
+          *logp << varType;
         }
       }
+      *logp << "\"";
       // Direction
-      *logp << " " << varDir.ascii();
+      *logp << ", dir=\"" << varDir.ascii() << "\"";
       // Name
-      *logp << " " << prettyName;
+      *logp << ", name=\"" << prettyName << "\"";
       // Location
-      *logp << " " << fileLine->ascii();
-    // ## Destination reg
+      *logp << ", loc=\"" << fileLine->ascii() << "\"";
     } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
+      // ## Destination reg
       AstVarType varType = vvertexp->varScp()->varp()->varType();
       VDirection varDir = vvertexp->varScp()->varp()->direction();
       FileLine *fileLine = vvertexp->varScp()->fileline();
@@ -275,20 +276,20 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
               varType == AstVarType::MODULETEMP ||
               varType == AstVarType::BLOCKTEMP);
       // Type
-      *logp << " REG_DST";
+      *logp << ", type=\"REG_DST\"";
       // Direction
-      *logp << " " << varDir.ascii();
+      *logp << ", dir=\"" << varDir.ascii() << "\"";
       // Name
-      *logp << " " << vvertexp->varScp()->prettyName();
+      *logp << ", name=\"" << vvertexp->varScp()->prettyName() << "\"";
       // Location
-      *logp << " " << fileLine->ascii();
-    // ## Logic vertex
+      *logp << ", loc=\"" << fileLine->ascii() << "\"";
     } else if (AstNetlistLogicVertex* vvertexp = dynamic_cast<AstNetlistLogicVertex*>(vertexp)) {
+      // ## Logic vertex
       FileLine *fileLine = vvertexp->nodep()->fileline();
-      *logp << " " << vvertexp->nodep()->typeName();
-      *logp << " " << fileLine->ascii();
+      *logp << ", type=\"" << vvertexp->nodep()->typeName() << "\"";
+      *logp << ", loc=\"" << fileLine->ascii() << "\"";
     }
-    *logp << "\n";
+    *logp << "];\n"; // End node.
     numMap[vertexp] = n++;
   }
   // Print edges.
@@ -297,10 +298,11 @@ void AstNetlistGraph::dumpNetlistGraphFile(const std::unordered_set<std::string>
       if (edgep->weight()) {
         int fromVnum = numMap[edgep->fromp()];
         int toVnum = numMap[edgep->top()];
-        *logp << "EDGE " << std::dec << fromVnum << " -> " << toVnum << "\n";
+        *logp << std::dec << "  n" << fromVnum << " -> n" << toVnum << ";\n";
       }
     }
   }
+  *logp << "}\n";
   logp->close();
 }
 
