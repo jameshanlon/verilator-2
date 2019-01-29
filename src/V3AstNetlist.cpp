@@ -246,6 +246,7 @@ dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const {
       const std::string &prettyName = vvertexp->varScp()->prettyName();
       AstVarType varType = vvertexp->varScp()->varp()->varType();
       VDirection varDir = vvertexp->varScp()->varp()->direction();
+      AstBasicDType *basicP = vvertexp->varScp()->varp()->basicp();
       FileLine *fileLine = vvertexp->varScp()->fileline();
       // Type
       *logp << ", type=\"";
@@ -262,14 +263,19 @@ dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const {
       *logp << "\"";
       // Direction
       *logp << ", dir=\"" << varDir.ascii() << "\"";
+      // Width
+      if (basicP != nullptr) {
+        *logp << ", width=\"" << basicP->width() << "\"";
+      }
       // Name
       *logp << ", name=\"" << prettyName << "\"";
       // Location
       *logp << ", loc=\"" << fileLine->ascii() << "\"";
-    } if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
+    } else if (AstNetlistRegVertex* vvertexp = dynamic_cast<AstNetlistRegVertex*>(vertexp)) {
       // ## Destination reg
       AstVarType varType = vvertexp->varScp()->varp()->varType();
       VDirection varDir = vvertexp->varScp()->varp()->direction();
+      AstBasicDType *basicP = vvertexp->varScp()->varp()->basicp();
       FileLine *fileLine = vvertexp->varScp()->fileline();
       assert (varType == AstVarType::VAR ||
               varType == AstVarType::PORT ||
@@ -279,6 +285,10 @@ dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const {
       *logp << ", type=\"REG_DST\"";
       // Direction
       *logp << ", dir=\"" << varDir.ascii() << "\"";
+      // Width
+      if (basicP != nullptr) {
+        *logp << ", width=\"" << basicP->width() << "\"";
+      }
       // Name
       *logp << ", name=\"" << vvertexp->varScp()->prettyName() << "\"";
       // Location
