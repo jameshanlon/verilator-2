@@ -590,10 +590,8 @@ sub compile_vlt_flags {
 			  @{$param{verilator_flags3}});
     $self->{sc} = 1 if ($checkflags =~ /-sc\b/);
     $self->{trace} = ($opt_trace || $checkflags =~ /-trace\b/
-                      || $checkflags =~ /-trace-fst\b/
-                      || $checkflags =~ /-trace-lxt2\b/);
+                      || $checkflags =~ /-trace-fst\b/);
     $self->{trace_format} = (($checkflags =~ /-trace-fst\b/ && 'fst-c')
-                             || ($checkflags =~ /-trace-lxt2\b/ && 'lxt2-c')
                              || ($self->{sc} && 'vcd-sc')
                              || (!$self->{sc} && 'vcd-c'));
     $self->{savable} = 1 if ($checkflags =~ /-savable\b/);
@@ -764,9 +762,8 @@ sub compile {
             return 1;
         }
 
-	if (!$param{fails} && $param{verilator_make_gcc}
-	    && $param{make_main}) {
-	    $self->_make_main();
+        if (!$param{fails} && $param{make_main}) {
+            $self->_make_main();
 	}
 
 	$self->_run(logfile=>"$self->{obj_dir}/vlt_compile.log",
@@ -1030,7 +1027,6 @@ sub have_sc {
 sub trace_filename {
     my $self = shift;
     return "$self->{obj_dir}/simx.fst" if $self->{trace_format} =~ /^fst/;
-    return "$self->{obj_dir}/simx.lxt2" if $self->{trace_format} =~ /^lxt2/;
     return "$self->{obj_dir}/simx.vcd";
 }
 
@@ -1197,6 +1193,9 @@ sub _make_main {
     print $fh "// Test defines\n";
     print $fh "#define VL_TIME_MULTIPLIER $self->{vl_time_multiplier}\n" if $self->{vl_time_multiplier};
 
+    print $fh "// OS header\n";
+    print $fh "#include \"verilatedos.h\"\n";
+
     print $fh "// Generated header\n";
     my $VM_PREFIX = $self->{VM_PREFIX};
     print $fh "#include \"$VM_PREFIX.h\"\n";
@@ -1205,7 +1204,6 @@ sub _make_main {
     print $fh "#include \"verilated.h\"\n";
     print $fh "#include \"systemc.h\"\n" if $self->sc;
     print $fh "#include \"verilated_fst_c.h\"\n" if $self->{trace} && $self->{trace_format} eq 'fst-c';
-    print $fh "#include \"verilated_lxt2_c.h\"\n" if $self->{trace} && $self->{trace_format} eq 'lxt2-c';
     print $fh "#include \"verilated_vcd_c.h\"\n" if $self->{trace} && $self->{trace_format} eq 'vcd-c';
     print $fh "#include \"verilated_vcd_sc.h\"\n" if $self->{trace} && $self->{trace_format} eq 'vcd-sc';
     print $fh "#include \"verilated_save.h\"\n" if $self->{savable};
@@ -1270,7 +1268,6 @@ sub _make_main {
 	$fh->print("#if VM_TRACE\n");
 	$fh->print("    Verilated::traceEverOn(true);\n");
         $fh->print("    VerilatedFstC* tfp = new VerilatedFstC;\n") if $self->{trace_format} eq 'fst-c';
-        $fh->print("    VerilatedLxt2C* tfp = new VerilatedLxt2C;\n") if $self->{trace_format} eq 'lxt2-c';
         $fh->print("    VerilatedVcdC* tfp = new VerilatedVcdC;\n") if $self->{trace_format} eq 'vcd-c';
         $fh->print("    VerilatedVcdSc* tfp = new VerilatedVcdSc;\n") if $self->{trace_format} eq 'vcd-sc';
         $fh->print("    topp->trace(tfp, 99);\n");
@@ -1679,22 +1676,6 @@ sub fst2vcd {
     if (!$out || $out !~ /Usage:/) { $self->skip("No fst2vcd installed\n"); return 0; }
 
     $cmd = qq{fst2vcd -e "$fn1" -o "$fn2"};
-    print "\t$cmd\n" if $::Debug;
-    $out = `$cmd`;
-    return 1;
-}
-
-sub lxt2vcd {
-    my $self = (ref $_[0]? shift : $Self);
-    my $fn1 = shift;
-    my $fn2 = shift;
-    if (!-r $fn1) { $self->error("File does not exist $fn1\n"); return 0; }
-    my $cmd = qq{lxt2vcd --help};
-    print "\t$cmd\n" if $::Debug;
-    my $out = `$cmd`;
-    if (!$out || $out !~ /Usage:/) { $self->skip("No lxt2vcd installed\n"); return 0; }
-
-    $cmd = qq{lxt2vcd "$fn1" -o "$fn2"};
     print "\t$cmd\n" if $::Debug;
     $out = `$cmd`;
     return 1;
@@ -2228,7 +2209,7 @@ Command to use to invoke VCS.
 
 The latest version is available from L<http://www.veripool.org/>.
 
-Copyright 2003-2018 by Wilson Snyder.  Verilator is free software; you can
+Copyright 2003-2019 by Wilson Snyder.  Verilator is free software; you can
 redistribute it and/or modify it under the terms of either the GNU Lesser
 General Public License Version 3 or the Perl Artistic License Version 2.0.
 

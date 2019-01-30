@@ -7,16 +7,12 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
 
-scenarios(simulator => 1);
-
-top_filename("t/t_trace_string.v");
+scenarios(vlt => 1);
 
 compile(
-    verilator_flags2 => ['--cc --trace'],
-    );
-
-execute(
-    check_finished => 1,
+    v_flags2 => ["--lint-only --language 1364-2001"],
+    fails => 1,
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);

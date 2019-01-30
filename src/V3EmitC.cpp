@@ -6,7 +6,7 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2018 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -2325,9 +2325,9 @@ void EmitCImp::emitIntFuncDecls(AstNodeModule* modp) {
         const AstCFunc* funcp = *it;
 	if (!funcp->dpiImport()) {  // DPI is prototyped in __Dpi.h
 	    ofp()->putsPrivate(funcp->declPrivate());
-	    if (funcp->ifdef()!="") puts("#ifdef "+funcp->ifdef()+"\n");
-	    if (funcp->isStatic()) puts("static ");
-	    puts(funcp->rtnTypeVoid()); puts(" ");
+            if (funcp->ifdef()!="") puts("#ifdef "+funcp->ifdef()+"\n");
+            if (funcp->isStatic().trueU()) puts("static ");
+            puts(funcp->rtnTypeVoid()); puts(" ");
 	    puts(funcp->name()); puts("("+cFuncArgs(funcp)+");\n");
 	    if (funcp->ifdef()!="") puts("#endif // "+funcp->ifdef()+"\n");
 	}
@@ -2730,10 +2730,11 @@ class EmitCTrace : EmitCStmts {
 
     // METHODS
     void newOutCFile(int filenum) {
-	string filename = (v3Global.opt.makeDir()+"/"+ topClassName()
-			   + (m_slow?"__Trace__Slow":"__Trace"));
-	if (filenum) filename += "__"+cvtToStr(filenum);
-	filename += ".cpp";
+        string filename = (v3Global.opt.makeDir()+"/"+ topClassName()
+                           +"__Trace");
+        if (filenum) filename += "__"+cvtToStr(filenum);
+        filename += (m_slow ? "__Slow":"");
+        filename += ".cpp";
 
 	AstCFile* cfilep = newCFile(filename, m_slow, true/*source*/);
 	cfilep->support(true);

@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2012-2018 by Wilson Snyder.  This program is free software;
+// Copyright 2012-2019 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -248,4 +248,4 @@ inline VerilatedDeserialize& operator>>(VerilatedDeserialize& os, std::string& r
     return os.read((void*)rhs.data(), len);
 }
 
-#endif // guard
+#endif  // Guard
