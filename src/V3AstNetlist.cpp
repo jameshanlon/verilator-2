@@ -13,7 +13,8 @@
 
 class AstNetlistGraph : public V3Graph {
 public:
-  void dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const;
+  void dumpNetlistDotFile(const std::unordered_set<std::string> &regs,
+                          const std::string &topName) const;
 };
 
 class AstNetlistEitherVertex : public V3GraphVertex {
@@ -109,7 +110,10 @@ public:
   }
   virtual void visit(AstNetlist *nodep) {
     iterateChildren(nodep);
-    graph.dumpNetlistDotFile(regs);
+    std::string topName = nodep->topModulep()->origName();
+    if (topName.substr(0, 4) == "TOP_")
+      topName.erase(0, 4);
+    graph.dumpNetlistDotFile(regs, topName);
     UINFO(1, "DONE!" << endl);
   }
   virtual void visit(AstNodeModule *nodep) {
@@ -231,14 +235,15 @@ public:
 };
 
 void AstNetlistGraph::
-dumpNetlistDotFile(const std::unordered_set<std::string> &regs) const {
+dumpNetlistDotFile(const std::unordered_set<std::string> &regs,
+                   const std::string &topName) const {
   const vl_unique_ptr<std::ofstream> logp (V3File::new_ofstream(v3Global.opt.exeName()));
   if (logp->fail())
     v3fatalSrc("Can't write "<<v3Global.opt.exeName());
   std::map <V3GraphVertex*, int> numMap;
   int n = 0;
   // Header.
-  *logp << "digraph netlist {\n";
+  *logp << "digraph " << topName << " {\n";
   for (V3GraphVertex* vertexp = verticesBeginp(); vertexp; vertexp=vertexp->verticesNextp()) {
     *logp << "  n" << std::dec << n << "[id=" << n; // Begin node.
     if (AstNetlistVarVertex* vvertexp = dynamic_cast<AstNetlistVarVertex*>(vertexp)) {
