@@ -7,14 +7,11 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
 
-scenarios(simulator => 1);
+scenarios(linter => 1);
 
-compile(
-    v_flags2 => ["--lint-only"],
+lint(
     fails => 1,
-    expect =>
-q{%Error: t/t_inst_array_bad.v:\d+: Input port connection 'onebit' as part of a module instance array requires 1 or 8 bits, but connection's VARREF 'onebitbad' generates 9 bits.
-%Error: Exiting due to.*},
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);

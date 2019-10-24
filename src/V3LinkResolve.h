@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3LINKRESOLVE_H_
 #define _V3LINKRESOLVE_H_ 1
 
@@ -34,4 +34,4 @@ public:
     static void linkResolve(AstNetlist* rootp);
 };
 
-#endif // Guard
+#endif  // Guard

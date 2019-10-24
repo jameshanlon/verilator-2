@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3GRAPHALG_H_
 #define _V3GRAPHALG_H_ 1
 
@@ -48,4 +48,4 @@ protected:
 
 //============================================================================
 
-#endif // Guard
+#endif  // Guard

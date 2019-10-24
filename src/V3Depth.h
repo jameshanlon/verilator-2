@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3DEPTH_H_
 #define _V3DEPTH_H_ 1
 
@@ -34,4 +34,4 @@ public:
     static void depthAll(AstNetlist* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

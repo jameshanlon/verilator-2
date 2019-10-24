@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3ASTCONSTONLY_H_
 #define _V3ASTCONSTONLY_H_ 1
 
@@ -30,4 +30,4 @@
 #define deleteTree       error_no_deleteTree_in_ConstOnlyVisitor
 #define unlinkFrBack     error_no_unlinkFrBack_in_ConstOnlyVisitor
 
-#endif // Guard
+#endif  // Guard

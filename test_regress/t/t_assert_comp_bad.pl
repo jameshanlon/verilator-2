@@ -12,15 +12,9 @@ scenarios(simulator => 1);
 compile(
     verilator_flags2 => ['--assert'],
     nc_flags2 => ['+assert'],
-    );
-
-execute(
-    check_finished => 0,
+    vcs_flags2 => ['-assert svaext'],
     fails => 1,
-    expect =>
-'.*%Warning: t_assert_comp_bad.v:\d+: Assertion failed in top.t.genblk1: User compile-time warning
-.*%Error: t_assert_comp_bad.v:\d+: Assertion failed in top.t.genblk1: User compile-time error'
-
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);

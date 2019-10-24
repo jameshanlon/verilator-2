@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3INST_H_
 #define _V3INST_H_ 1
 
@@ -35,6 +35,7 @@ public:
     static void dearrayAll(AstNetlist* nodep);
     static AstAssignW* pinReconnectSimple(AstPin* pinp, AstCell* cellp,
                                           bool forTristate, bool alwaysCvt=false);
+    static void checkOutputShort(AstPin* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

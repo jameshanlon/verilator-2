@@ -7,19 +7,16 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
 
-scenarios(simulator => 1);
+scenarios(vlt => 1);
 
-compile(
-    v_flags2 => ["--lint-only"],
+lint(
     fails => 1,
-    verilator_make_gcc => 0,
-    make_top_shell => 0,
-    make_main => 0,
+    # Can't use expect_filename here as unstable output
     expect =>
 '%Error: Circular logic when ordering code .*
-%Error:      Example path: t/t_order_loop_bad.v:\d+:  ALWAYS
-%Error:      Example path: t/t_order_loop_bad.v:\d+:  t.ready
-%Error:      Example path: t/t_order_loop_bad.v:\d+:  ACTIVE
+ *t/t_order_loop_bad.v:\d+: + Example path: ALWAYS
+ *t/t_order_loop_bad.v:\d+: + Example path: t.ready
+ *t/t_order_loop_bad.v:\d+: + Example path: ACTIVE
 .*',
     );
 

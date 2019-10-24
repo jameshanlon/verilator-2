@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3COVERAGE_H_
 #define _V3COVERAGE_H_ 1
 
@@ -35,4 +35,4 @@ public:
     static void coverage(AstNetlist* rootp);
 };
 
-#endif // Guard
+#endif  // Guard

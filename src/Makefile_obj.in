@@ -60,6 +60,8 @@ pkgdatadir = @pkgdatadir@
 CFG_WITH_CCWARN = @CFG_WITH_CCWARN@
 CFG_WITH_DEFENV = @CFG_WITH_DEFENV@
 CPPFLAGS += @CPPFLAGS@
+CFLAGS += @CFLAGS@
+CXXFLAGS += @CXXFLAGS@
 LDFLAGS += @LDFLAGS@
 EXEEXT = @EXEEXT@
 CFG_CXXFLAGS_SRC = @CFG_CXXFLAGS_SRC@
@@ -135,7 +137,7 @@ VLCOVGEN = $(srcdir)/vlcovgen
 all: make_info $(TGT)
 
 make_info:
-	@echo "      Compile flags: " $(CXX) ${CPPFLAGS}
+	@echo "      Compile flags: " $(CXX) ${CFLAGS} ${CXXFLAGS} ${CPPFLAGS}
 
 clean mostlyclean distclean maintainer-clean::
 	-rm -f *.o *.d perlxsi.c *_gen_*
@@ -168,7 +170,6 @@ RAW_OBJS = \
 	V3Cdc.o \
 	V3Changed.o \
 	V3Clean.o \
-	V3ClkGater.o \
 	V3Clock.o \
 	V3Combine.o \
 	V3Config.o \
@@ -183,6 +184,7 @@ RAW_OBJS = \
 	V3EmitC.o \
 	V3EmitCInlines.o \
 	V3EmitCSyms.o \
+	V3EmitCMake.o \
 	V3EmitMk.o \
 	V3EmitV.o \
 	V3EmitXml.o \
@@ -221,6 +223,7 @@ RAW_OBJS = \
 	V3Partition.o \
 	V3PreShell.o \
 	V3Premit.o \
+	V3ProtectLib.o \
 	V3Reloop.o \
 	V3Scope.o \
 	V3Scoreboard.o \
@@ -281,21 +284,21 @@ V3Number_test: V3Number_test.o
 	$(PERL) $(ASTGEN) -I$(srcdir) $*.cpp
 
 %.o:	%.cpp
-	$(OBJCACHE) ${CXX} ${CPPFLAGSWALL} -c $<
+	$(OBJCACHE) ${CXX} ${CXXFLAGS} ${CPPFLAGSWALL} -c $<
 %.o:	%.c
-	$(OBJCACHE) ${CC}  ${CPPFLAGSWALL} -c $<
+	$(OBJCACHE) ${CC}  ${CFLAGS} ${CPPFLAGSWALL} -c $<
 
 V3ParseLex.o:	V3ParseLex.cpp V3Lexer.yy.cpp V3ParseBison.c
-	$(OBJCACHE) ${CXX} ${CPPFLAGSPARSER} -c $<
+	$(OBJCACHE) ${CXX} ${CXXFLAGS} ${CPPFLAGSPARSER} -c $<
 
 V3ParseGrammar.o:	V3ParseGrammar.cpp V3ParseBison.c
-	$(OBJCACHE) ${CXX} ${CPPFLAGSPARSER} -c $<
+	$(OBJCACHE) ${CXX} ${CXXFLAGS} ${CPPFLAGSPARSER} -c $<
 
 V3ParseImp.o:	V3ParseImp.cpp V3ParseBison.c
-	$(OBJCACHE) ${CXX} ${CPPFLAGSPARSER} -c $<
+	$(OBJCACHE) ${CXX} ${CXXFLAGS} ${CPPFLAGSPARSER} -c $<
 
 V3PreProc.o:	V3PreProc.cpp V3PreLex.yy.cpp
-	$(OBJCACHE) ${CXX} ${CPPFLAGSPARSER} -c $<
+	$(OBJCACHE) ${CXX} ${CXXFLAGS} ${CPPFLAGSPARSER} -c $<
 
 #### Generated files
 

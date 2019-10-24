@@ -9,15 +9,13 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 
 scenarios(vlt => 1);
 
-compile(
-    v_flags2 => ["--lint-only --Mdir obj_lint_only"],
+lint(
+    verilator_flags2 => ["--lint-only --Mdir obj_lint_only"],
     fails => 1,
-    expect =>
-'%Error-ASSIGNIN: t/t_var_in_assign_bad.v:\d+: Assigning to input/const variable: value
-%Error-ASSIGNIN: t/t_var_in_assign_bad.v:\d+: Assigning to input/const variable: valueSub
-%Error: Exiting due to.*',
+    expect_filename => $Self->{golden_filename},
     );
 
 (!-d "obj_lint_only") or error("%Error: lint-only shouldn't make output directory");
+
 ok(1);
 1;

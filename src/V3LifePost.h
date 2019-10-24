@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3LIFEPOST_H_
 #define _V3LIFEPOST_H_ 1
 
@@ -34,4 +34,4 @@ public:
     static void lifepostAll(AstNetlist* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

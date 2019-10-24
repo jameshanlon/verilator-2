@@ -32,7 +32,7 @@
 //   Likewise vector assign to the same constant converted to a loop.
 //
 //*************************************************************************
-
+
 #include "config_build.h"
 #include "verilatedos.h"
 
@@ -58,8 +58,8 @@ private:
     AstUser1InUse       m_inuser1;
 
     // STATE
-    V3Double0           m_statReloops;  // Statistic tracking
-    V3Double0           m_statReItems;  // Statistic tracking
+    VDouble0            m_statReloops;  // Statistic tracking
+    VDouble0            m_statReItems;  // Statistic tracking
     AstCFunc*           m_cfuncp;       // Current block
 
     AssVec              m_mgAssignps;   // List of assignments merging
@@ -82,7 +82,7 @@ private:
             string newvarname = string("__Vilp");
             varp = new AstVar(fl, AstVarType::STMTTEMP,
                               newvarname, VFlagLogicPacked(), 32);
-            if (!cfuncp) fl->v3fatalSrc("Assignment not under a function");
+            UASSERT_OBJ(cfuncp, fl, "Assignment not under a function");
             cfuncp->addInitsp(varp);
             cfuncp->user1p(varp);
         }
@@ -101,7 +101,7 @@ private:
 
                 // Transform first assign into for loop body
                 AstNodeAssign* bodyp = m_mgAssignps.front();
-                if (bodyp->lhsp() != m_mgSelLp) bodyp->v3fatalSrc("Corrupt queue/state");
+                UASSERT_OBJ(bodyp->lhsp() == m_mgSelLp, bodyp, "Corrupt queue/state");
                 FileLine* fl = bodyp->fileline();
                 AstVar* itp = findCreateVarTemp(fl, m_mgCfuncp);
 
@@ -233,7 +233,7 @@ private:
     }
 
 public:
-    // CONSTUCTORS
+    // CONSTRUCTORS
     explicit ReloopVisitor(AstNetlist* nodep) {
         m_cfuncp = NULL;
         m_mgCfuncp = NULL;

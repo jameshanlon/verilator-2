@@ -11,13 +11,9 @@ scenarios(vlt => 1);
 
 top_filename("t/t_flag_werror.v");
 
-compile(
-    v_flags2 => ["--lint-only"],
-    fails => $Self->{vlt_all},
-    expect =>
-q{%Warning-WIDTH: t/t_flag_werror.v:\d+: Operator ASSIGNW expects 4 bits on the Assign RHS, but Assign RHS.s CONST '6'h2e' generates 6 bits.
-%Warning-WIDTH: Use .* and lint_on around source to disable this message.
-%Error: Exiting due to},
+lint(
+    fails => 1,
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);

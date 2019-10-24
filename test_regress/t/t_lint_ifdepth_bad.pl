@@ -9,18 +9,11 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 
 scenarios(vlt_all => 1);
 
-compile(
-    v_flags2 => ["--lint-only -Wall -Wno-DECLFILENAME --if-depth 10"],
+lint(
+    verilator_flags2 => ["--lint-only -Wall -Wno-DECLFILENAME --if-depth 10"],
     fails => 1,
-    verilator_make_gcc => 0,
-    make_top_shell => 0,
-    make_main => 0,
-    expect =>
-'%Warning-IFDEPTH: t/t_lint_ifdepth_bad.v:\d+: Deep \'if\' statement; suggest unique/priority to avoid slow logic
-%Warning-IFDEPTH: Use .* to disable this message.
-%Error: Exiting due to.*',
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);
 1;
-

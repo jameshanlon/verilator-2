@@ -1,5 +1,6 @@
 \.clang-tidy
 \.git/
+\.git$
 \.svn/
 \.(bak|old)/
 \.(bak|old)$
@@ -13,6 +14,8 @@
 .*\.key
 .*\.vcd
 .*\.1
+\.travis\.yml
+/build/
 /obj_dir/
 /obj_dbg/
 /obj_nc/
@@ -27,6 +30,8 @@
 ^Makefile$
 bin/verilator_bin.*
 bin/verilator_coverage_bin.*
+docs/Makefile$
+docs/doxygen-doc/.*
 src/Makefile$
 src/Makefile_obj$
 include/verilated.mk$
@@ -35,6 +40,8 @@ config.cache$
 config.status$
 verilator\.log
 verilator\.tex
+verilator-config.cmake$
+verilator-config-version.cmake$
 verilator.pc$
 verilator_bin.*
 verilator_coverage_bin.*
@@ -42,11 +49,11 @@ verilator_coverage_bin.*
 ncverilog.history
 autom4te\.cache/
 nodist/
+ci/
 /simv$
 /simv.daidir/
 /vc_hdrs.h$
 /csrc/
-doxygen-doc/.*
-obj_dir/.*
+obj_dir.*
 TAGS
 .*~

@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3DEAD_H_
 #define _V3DEAD_H_ 1
 
@@ -41,4 +41,4 @@ public:
     static void deadifyAllScoped(AstNetlist* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

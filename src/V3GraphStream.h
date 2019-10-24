@@ -18,7 +18,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3GRAPHSTREAM_H_
 #define _V3GRAPHSTREAM_H_
 
@@ -60,7 +60,7 @@ private:
         // Decrement blocking edges count, return true if the vertex is
         // newly unblocked
         bool unblock() {
-            if (m_numBlockingEdges <= 0) vertexp()->v3fatalSrc("Underflow of blocking edges");
+            UASSERT_OBJ(m_numBlockingEdges > 0, vertexp(), "Underflow of blocking edges");
             m_numBlockingEdges--;
             return (m_numBlockingEdges == 0);
         }
@@ -88,8 +88,8 @@ private:
 
     // MEMBERS
     VxHolderCmp m_vxHolderCmp;  // Vertext comparison functor
-    ReadyVertices m_readyVertices;  // List of ready verticies
-    WaitingVertices m_waitingVertices;  // List of wiating verticies
+    ReadyVertices m_readyVertices;  // List of ready vertices
+    WaitingVertices m_waitingVertices;  // List of waiting vertices
     typename ReadyVertices::iterator m_last;  // Previously returned element
     GraphWay m_way;  // FORWARD or REVERSE order of traversal
 
@@ -208,9 +208,8 @@ private:
 
                 typename WaitingVertices::iterator it =
                     m_waitingVertices.find(toVertexp);
-                if (it == m_waitingVertices.end()) {
-                    toVertexp->v3fatalSrc("Found edge into vertex not in waiting list.");
-                }
+                UASSERT_OBJ(it != m_waitingVertices.end(), toVertexp,
+                            "Found edge into vertex not in waiting list.");
                 if (it->second.unblock()) {
                     m_readyVertices.insert(it->second);
                     m_waitingVertices.erase(it);
@@ -223,9 +222,8 @@ private:
 
                 typename WaitingVertices::iterator it =
                     m_waitingVertices.find(fromVertexp);
-                if (it == m_waitingVertices.end()) {
-                    fromVertexp->v3fatalSrc("Found edge into vertex not in waiting list.");
-                }
+                UASSERT_OBJ(it != m_waitingVertices.end(), fromVertexp,
+                            "Found edge into vertex not in waiting list.");
                 if (it->second.unblock()) {
                     m_readyVertices.insert(it->second);
                     m_waitingVertices.erase(it);

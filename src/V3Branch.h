@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3BRANCH_H_
 #define _V3BRANCH_H_ 1
 
@@ -35,4 +35,4 @@ public:
     static void branchAll(AstNetlist* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

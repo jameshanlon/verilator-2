@@ -6,9 +6,11 @@
 `include "verilated.v"
 
 `define STRINGIFY(x) `"x`"
+`define ratio_error(a,b) (((a)>(b) ? ((a)-(b)) : ((b)-(a))) /(a))
+`define checkr(gotv,expv) do if (`ratio_error((gotv),(expv))>0.0001) begin $write("%%Error: %s:%0d:  got=%g exp=%g\n", `__FILE__,`__LINE__, (gotv), (expv)); $stop; end while(0);
 
 module t;
-   `verilator_file_descriptor file;
+   integer file;
 
    integer	chars;
    reg [1*8:1]	letterl;
@@ -21,6 +23,8 @@ module t;
    reg [7:0] 	v_a,v_b,v_c,v_d;
    reg [31:0] 	v_worda;
    reg [31:0] 	v_wordb;
+
+   integer v_length, v_off;
 
 `ifdef TEST_VERBOSE
  `define verbose 1'b1
@@ -113,12 +117,12 @@ module t;
 	 if (chars != 1) $stop;
 	 if (letterq != "ijklmnop") $stop;
 
-	 chars = $sscanf("xa=1f xb=12898971238912389712783490823_237904689_02348923",
+	 chars = $sscanf("xa=1f xb=12898971238912389712783490823_abcdef689_02348923",
 			 "xa=%x xb=%x", letterq, letterw);
 	 if (`verbose) $write("c=%0d xa=%x xb=%x\n", chars, letterq, letterw);
 	 if (chars != 2) $stop;
 	 if (letterq != 64'h1f) $stop;
-	 if (letterw != 128'h38971278349082323790468902348923) $stop;
+	 if (letterw != 128'h389712783490823_abcdef689_02348923) $stop;
 
 	 chars = $sscanf("ba=10      bb=110100101010010101012    note_the_two ",
 			 "ba=%b bb=%b%s", letterq, letterw, letterz);
@@ -139,14 +143,25 @@ module t;
 			 "r=%g d=%d", r, letterq);
 	 if (`verbose) $write("c=%0d d=%d\n", chars, letterq);
 	 if (chars != 2) $stop;
-	 if (r != 0.1) $stop;
+	 `checkr(r, 0.1);
 	 if (letterq != 64'hfffffffffffc65a5) $stop;
+
+	 // Cover quad and %e/%f
+	 chars = $sscanf("r=0.2",
+			 "r=%e", r);
+	 if (`verbose) $write("c=%0d r=%e\n", chars, r);
+	 `checkr(r, 0.2);
+
+	 chars = $sscanf("r=0.3",
+			 "r=%f", r);
+	 if (`verbose) $write("c=%0d r=%f\n", chars, r);
+	 `checkr(r, 0.3);
 
 	 s = "r=0.2 d=-236124";
 	 chars = $sscanf(s, "r=%g d=%d", r, letterq);
 	 if (`verbose) $write("c=%0d d=%d\n", chars, letterq);
 	 if (chars != 2) $stop;
-	 if (r != 0.2) $stop;
+	 `checkr(r, 0.2);
 	 if (letterq != 64'hfffffffffffc65a4) $stop;
 
 	 // $fscanf
@@ -211,6 +226,27 @@ module t;
 	 if (v_wordb != "9876") $stop;
 
 	 if ($fgetc(file) != "\n") $stop;
+
+
+	v_length = $ftell(file);
+	$frewind(file);
+	v_off = $ftell(file);
+	if (v_off != 0) $stop;
+	$fseek(file, 10, 0);
+	v_off = $ftell(file);
+	if (v_off != 10) $stop;
+	$fseek(file, 1, 1);
+	v_off = $ftell(file);
+	if (v_off != 11) $stop;
+	$fseek(file, -1, 1);
+	v_off = $ftell(file);
+	if (v_off != 10) $stop;
+	$fseek(file, v_length, 0);
+	v_off = $ftell(file);
+	if (v_off != v_length) $stop;
+	if ($fseek(file, 0, 2) != 0) $stop;
+	v_off = $ftell(file);
+	if (v_off < v_length) $stop;
 
 	 $fclose(file);
       end

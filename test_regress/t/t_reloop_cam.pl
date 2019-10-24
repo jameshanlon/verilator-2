@@ -11,6 +11,7 @@ scenarios(simulator => 1);
 
 compile(
     verilator_flags2 => ["-unroll-count 1024",
+                         $Self->wno_unopthreads_for_few_cores(),
                          "--stats"],
     );
 
@@ -19,10 +20,10 @@ execute(
     );
 
 if ($Self->{vlt_all}) {
-    file_grep ($Self->{stats}, qr/Optimizations, Reloop iterations\s+(\d+)/i,
-               768);
-    file_grep ($Self->{stats}, qr/Optimizations, Reloops\s+(\d+)/i,
-               3);
+    file_grep($Self->{stats}, qr/Optimizations, Reloop iterations\s+(\d+)/i,
+              768);
+    file_grep($Self->{stats}, qr/Optimizations, Reloops\s+(\d+)/i,
+              3);
 }
 
 ok(1);

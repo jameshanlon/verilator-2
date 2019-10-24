@@ -7,17 +7,12 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
 
-scenarios(simulator => 1);
+scenarios(linter => 1);
 
-compile(
-    v_flags2 => ["--lint-only"],
+lint(
     fails => $Self->{vlt_all},
-    expect =>
-'%Warning-SELRANGE: t/t_select_bad_range3.v:\d+: Selection index out of range: 13 outside 12:10
-%Warning-SELRANGE: Use .*
-%Error: Exiting due to.*',
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);
 1;
-

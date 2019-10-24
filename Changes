@@ -2,6 +2,169 @@ Revision history for Verilator
 
 The contributors that suggested a given feature are shown in []. Thanks!
 
+* Verilator 4.021 devel
+
+**    Add --protect-lib, bug1490. [Todd Strader]
+
+**    Add cmake support, bug1363. [Patrick Stewart]
+
+***   Examples have been renamed.
+
+***   Add --protect-ids to obscure information in objects, bug1521. [Todd Strader]
+
+***   Support multithreading on Windows. [Patrick Stewart]
+
+****  Increase case duplicate/incomplete to 16 bit tables, bug1545. [Yossi Nivin]
+
+****  Fix multithreaded yield behavior when no work.  [Patrick Stewart]
+
+****  Fix bad-syntax crashes, bug1548, bug1550-1553, bug1557-1560, bug1563. [Eric Rippey]
+
+****  Benchmark --protect-lib runtime, bug1519. [Todd Strader]
+
+
+* Verilator 4.020 2019-10-06
+
+***   Support $fseek, $ftell, $frewind, bug1496. [Howard Su]
+
+***   Add --public-flat-rw, bug1511. [Stefan Wallentowitz]
+
+***   Support vpiModule, bug1469. [Stefan Wallentowitz]
+
+****  Make Syms file honor --output-split-cfuncs, bug1499. [Todd Strader]
+
+****  Fix make test with no VERILATOR_ROOT, bug1494. [Ahmed El-Mahmoudy]
+
+****  Fix error on multidimensional cells, bug1505. [Anderson Ignacio Da Silva]
+
+****  Fix config_rev revision detection on old versions.
+
+****  Fix false warning on backward indexing, bug1507. [Hao Shi]
+
+****  Fix vpiType accessor, bug1509, bug1510. [Stefan Wallentowitz]
+
+****  Fix ugly error on interface misuse, bug1525. [Bogdan Vukobratovic]
+
+****  Fix misc bad-syntax crashes, bug1529-bug1533. [Eric Rippey]
+
+****  Fix case statements with strings, bug1536. [Philipp Wagner]
+
+
+* Verilator 4.018 2019-08-29
+
+**    When showing an error, show source code and offer suggestions of replacements.
+
+**    When showing an error, show the instance location, bug1305. [Todd Strader]
+
+***   Add --rr, bug1481. [Todd Strader]
+
+***   Change MULTITOP to warning to help linting, see manual.
+
+***   Add XSim support to driver.pl, bug1493. [Todd Strader]
+
+****  Show included-from filenames in warnings, bug1439. [Todd Strader]
+
+****  Fix elaboration time errors, bug1429. [Udi Finkelstein]
+
+****  Fix not reporting some duplicate signals/ports, bug1462. [Peter Gerst]
+
+****  Fix not in array context on non-power-of-two slices, msg2946. [Yu Sheng Lin]
+
+****  Fix system compile flags injection. [Gianfranco Costamagna]
+
+****  Fix enum values not being sized based on parent, bug1442. [Dan Petrisko]
+
+****  Fix internal error on gate optimization of assign, bug1475. [Oyvind Harboe]
+
+****  Add --dpi-hdr-only, bug1491. [Todd Strader]
+
+
+* Verilator 4.016 2019-06-16
+
+***   Add --quiet-exit, bug1436. [Todd Strader]
+
+****  Error continuation lines no longer have %Error prefix.
+
+****  Support logical equivalence operator <->.
+
+****  Support VerilatedFstC set_time_unit, bug1433. [Pieter Kapsenberg]
+
+****  Support deferred assertions, bug1449. [Charles Eddleston]
+
+****  Mark infrequently called functions with GCC cold attribute.
+
+****  Fix sign-compare warning in verilated.cpp, bug1437. [Sergey Kvachonok]
+
+****  Fix fault on $realtime with %t, bug1443. [Julien Margetts]
+
+****  Fix $display with string without %s, bug1441. [Denis Rystsov]
+
+****  Fix parameter function string returns, bug1441. [Denis Rystsov]
+
+****  Fix invalid XML output due to special chars, bug1444. [Kanad Kanhere]
+
+****  Fix performance when mulithreaded on 1 CPU, bug1455. [Stefan Wallentowitz]
+
+****  Fix type and real parameter issues, bug1427, bug1456, bug1458. [Todd Strader]
+
+****  Fix build error on MinGW, bug1460. [Richard Myers]
+
+****  Fix not reporting some duplicate signals, bug1462. [Peter Gerst]
+
+****  Fix --savable invalid C++ on packed arrays, bug1465. [Alex Chadwick]
+
+****  Fix constant function return of function var, bug1467. [Roman Popov]
+
+
+* Verilator 4.014 2019-05-08
+
+***   Add --trace-fst-thread.
+
+****  Support '#' comments in $readmem, bug1411. [Frederick Requin]
+
+****  Support "'dx" constants, bug1423. [Udi Finkelstein]
+
+****  For FST tracing use LZ4 compression. [Tony Bybell]
+
+****  Add error when use parameters without value, bug1424. [Peter Gerst]
+
+****  Auto-extend and WIDTH warn on unsized X/Zs, bug1423. [Udi Finkelstein]
+
+****  Fix missing VL_SHIFTL_ errors, bug1412, bug1415. [Larry Lee]
+
+****  Fix MinGW GCC 6 printf formats, bug1413. [Sergey Kvachonok]
+
+****  Fix test problems when missing fst2vcd, bug1417. [Todd Strader]
+
+****  Fix GTKWave register warning, bug1421. [Pieter Kapsenberg]
+
+****  Fix FST enums not displaying, bug1426. [Danilo Ramos]
+
+****  Fix table compile error with multiinterfaces, bug1431. [Bogdan Vukobratovic]
+
+
+* Verilator 4.012 2019-3-23
+
+***   Add +verilator+seed, bug1396. [Stan Sokorac]
+
+***   Support $fread.  [Leendert van Doorn]
+
+***   Support void' cast on functions called as tasks, bug1383. [Al Grant]
+
+***   Add IGNOREDRETURN warning, bug1383.
+
+****  Report PORTSHORT errors on concat constants, bug 1400. [Will Korteland]
+
+****  Fix VERILATOR_GDB being ignored, msg2860. [Yu Sheng Lin]
+
+****  Fix $value$plus$args missing verilated_heavy.h. [Yi-Chung Chen]
+
+****  Fix MSVC compile error, bug1406. [Benjamin Gartner]
+
+****  Fix maintainer test when no Parallel::Forker, msg2630. [Enzo Chi]
+
+****  Fix +1364-1995ext flags applying too late, bug1384. [Al Grant]
+
 
 * Verilator 4.010 2019-01-27
 
@@ -3196,7 +3359,7 @@ of input ports exists for tracing.
 * Verilator 0.0 1994/7/8
 
 **** First code written.
-
+
 ----------------------------------------------------------------------
 
 This uses outline mode in Emacs.  See C-h m [M-x describe-mode].

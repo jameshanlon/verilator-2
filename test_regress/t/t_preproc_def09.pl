@@ -13,13 +13,13 @@ my $stdout_filename = "$Self->{obj_dir}/$Self->{name}__test.vpp";
 
 compile(
     verilator_flags2 => ['-E'],
-    verilator_make_gcc => 0,
+    verilator_make_gmake => 0,
     make_top_shell => 0,
     make_main => 0,
     stdout_filename => $stdout_filename,
     );
 
-files_identical($stdout_filename, "t/$Self->{name}.out");
+files_identical($stdout_filename, $Self->{golden_filename});
 
 ok(1);
 1;

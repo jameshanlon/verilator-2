@@ -11,8 +11,11 @@ scenarios(simulator => 1);
 
 top_filename("t/t_inst_tree.v");
 
+my $default_vltmt_threads = $Self->get_default_vltmt_threads();
 compile(
-    verilator_flags2 => ['+define+NOUSE_INLINE', '+define+USE_PUBLIC', '--stats'],
+    verilator_flags2 => ['+define+NOUSE_INLINE', '+define+USE_PUBLIC', '--stats',
+                         # Force 3 threads even if we have fewer cores
+                         $Self->{vltmt} ? "--threads $default_vltmt_threads" : ""]
     );
 
 sub checkRelativeRefs {
@@ -38,8 +41,8 @@ sub checkRelativeRefs {
 if ($Self->{vlt_all}) {
     # We expect to combine sequent functions across multiple instances of
     # l2, l3, l4, l5. If this number drops, please confirm this has not broken.
-    file_grep ($Self->{stats}, qr/Optimizations, Combined CFuncs\s+(\d+)/i,
-               ($Self->{vltmt} ? 84 : 52));
+    file_grep($Self->{stats}, qr/Optimizations, Combined CFuncs\s+(\d+)/i,
+              ($Self->{vltmt} ? 84 : 52));
 
     # Expect absolute refs in CFuncs for t (top module) and l1 (because it
     # has only one instance)

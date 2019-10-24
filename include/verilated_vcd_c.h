@@ -134,17 +134,24 @@ private:
     // cppcheck-suppress functionConst
     void dumpDone();
     inline void printCode(vluint32_t code) {
-        if (code>=(94*94*94)) *m_writep++ = static_cast<char>((code/94/94/94)%94+33);
-        if (code>=(94*94))    *m_writep++ = static_cast<char>((code/94/94)%94+33);
-        if (code>=(94))       *m_writep++ = static_cast<char>((code/94)%94+33);
-        *m_writep++ = static_cast<char>((code)%94+33);
+        *m_writep++ = static_cast<char>('!' + code % 94);
+        code /= 94;
+        while (code) {
+            code--;
+            *m_writep++ = static_cast<char>('!' + code % 94);
+            code /= 94;
+        }
     }
     static std::string stringCode(vluint32_t code) VL_PURE {
         std::string out;
-        if (code>=(94*94*94)) out += static_cast<char>((code/94/94/94)%94+33);
-        if (code>=(94*94))    out += static_cast<char>((code/94/94)%94+33);
-        if (code>=(94))       out += static_cast<char>((code/94)%94+33);
-        return out + static_cast<char>((code)%94+33);
+        out += static_cast<char>('!' + code % 94);
+        code /= 94;
+        while (code) {
+            code--;
+            out += static_cast<char>('!' + code % 94);
+            code /= 94;
+        }
+        return out;
     }
 
     // CONSTRUCTORS
@@ -155,7 +162,7 @@ public:
 
     // ACCESSORS
     /// Set size in megabytes after which new file should be created
-    void rolloverMB(vluint64_t rolloverMB) { m_rolloverMB=rolloverMB; };
+    void rolloverMB(vluint64_t rolloverMB) { m_rolloverMB=rolloverMB; }
     /// Is file open?
     bool isOpen() const { return m_isOpen; }
     /// Change character that splits scopes.  Note whitespace are ALWAYS escapes.
@@ -261,7 +268,8 @@ public:
         *m_writep++=' '; printCode(code); *m_writep++='\n';
         bufferCheck();
     }
-    void fullTriQuad(vluint32_t code, const vluint64_t newval, const vluint32_t newtri, int bits) {
+    void fullTriQuad(vluint32_t code, const vluint64_t newval,
+                     const vluint32_t newtri, int bits) {
         (*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code]))) = newval;
         (*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code+1]))) = newtri;
         *m_writep++='b';
@@ -272,7 +280,8 @@ public:
         *m_writep++=' '; printCode(code); *m_writep++='\n';
         bufferCheck();
     }
-    void fullTriArray(vluint32_t code, const vluint32_t* newvalp, const vluint32_t* newtrip, int bits) {
+    void fullTriArray(vluint32_t code, const vluint32_t* newvalp,
+                      const vluint32_t* newtrip, int bits) {
         for (int word=0; word<(((bits-1)/32)+1); ++word) {
             m_sigs_oldvalp[code+word*2]   = newvalp[word];
             m_sigs_oldvalp[code+word*2+1] = newtrip[word];
@@ -312,7 +321,8 @@ public:
     inline void chgBit(vluint32_t code, const vluint32_t newval) {
         vluint32_t diff = m_sigs_oldvalp[code] ^ newval;
         if (VL_UNLIKELY(diff)) {
-            // Verilator 3.510 and newer provide clean input, so the below is only for back compatibility
+            // Verilator 3.510 and newer provide clean input, so the below
+            // is only for back compatibility
             if (VL_UNLIKELY(diff & 1)) {  // Change after clean?
                 fullBit(code, newval);
             }
@@ -342,17 +352,20 @@ public:
             }
         }
     }
-    inline void chgTriBit(vluint32_t code, const vluint32_t newval, const vluint32_t newtri) {
+    inline void chgTriBit(vluint32_t code, const vluint32_t newval,
+                          const vluint32_t newtri) {
         vluint32_t diff = ((m_sigs_oldvalp[code] ^ newval)
                          | (m_sigs_oldvalp[code+1] ^ newtri));
         if (VL_UNLIKELY(diff)) {
-            // Verilator 3.510 and newer provide clean input, so the below is only for back compatibility
+            // Verilator 3.510 and newer provide clean input, so the below
+            // is only for back compatibility
             if (VL_UNLIKELY(diff & 1)) {  // Change after clean?
                 fullTriBit(code, newval, newtri);
             }
         }
     }
-    inline void chgTriBus(vluint32_t code, const vluint32_t newval, const vluint32_t newtri, int bits) {
+    inline void chgTriBus(vluint32_t code, const vluint32_t newval,
+                          const vluint32_t newtri, int bits) {
         vluint32_t diff = ((m_sigs_oldvalp[code] ^ newval)
                          | (m_sigs_oldvalp[code+1] ^ newtri));
         if (VL_UNLIKELY(diff)) {
@@ -361,7 +374,8 @@ public:
             }
         }
     }
-    inline void chgTriQuad(vluint32_t code, const vluint64_t newval, const vluint32_t newtri, int bits) {
+    inline void chgTriQuad(vluint32_t code, const vluint64_t newval,
+                           const vluint32_t newtri, int bits) {
         vluint64_t diff = ( ((*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code]))) ^ newval)
                             | ((*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code+1]))) ^ newtri));
         if (VL_UNLIKELY(diff)) {
@@ -370,7 +384,8 @@ public:
             }
         }
     }
-    inline void chgTriArray(vluint32_t code, const vluint32_t* newvalp, const vluint32_t* newtrip, int bits) {
+    inline void chgTriArray(vluint32_t code, const vluint32_t* newvalp,
+                            const vluint32_t* newtrip, int bits) {
         for (int word=0; word<(((bits-1)/32)+1); ++word) {
             if (VL_UNLIKELY((m_sigs_oldvalp[code+word*2] ^ newvalp[word])
                             | (m_sigs_oldvalp[code+word*2+1] ^ newtrip[word]))) {
@@ -425,7 +440,7 @@ public:
     /// "cat" to be used to combine the header plus any number of data files.
     void openNext(bool incFilename=true) VL_MT_UNSAFE_ONE { m_sptrace.openNext(incFilename); }
     /// Set size in megabytes after which new file should be created
-    void rolloverMB(size_t rolloverMB) { m_sptrace.rolloverMB(rolloverMB); };
+    void rolloverMB(size_t rolloverMB) { m_sptrace.rolloverMB(rolloverMB); }
     /// Close dump
     void close() VL_MT_UNSAFE_ONE { m_sptrace.close(); }
     /// Flush dump
@@ -447,7 +462,7 @@ public:
     void set_time_resolution(const std::string& unit) { set_time_resolution(unit.c_str()); }
 
     /// Internal class access
-    inline VerilatedVcd* spTrace() { return &m_sptrace; };
+    inline VerilatedVcd* spTrace() { return &m_sptrace; }
 };
 
 #endif  // guard

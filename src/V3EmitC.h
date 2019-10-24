@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3EMITC_H_
 #define _V3EMITC_H_ 1
 
@@ -33,8 +33,9 @@ class V3EmitC {
 public:
     static void emitc();
     static void emitcInlines();
-    static void emitcSyms();
+    static void emitcSyms(bool dpiHdrOnly = false);
     static void emitcTrace();
+    static void emitcFiles();
 };
 
-#endif // Guard
+#endif  // Guard

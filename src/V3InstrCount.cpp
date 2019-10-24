@@ -18,7 +18,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #include "config_build.h"
 #include "verilatedos.h"
 
@@ -100,10 +100,9 @@ private:
             // (which at the V3Order stage represent verilog tasks, not to
             // the CFuncs that V3Order will generate.) So don't check for
             // collisions in CFuncs.
-            if (nodep->user5p()) {
-                nodep->v3fatalSrc("Node originally inserted below logic vertex "
-                                  <<static_cast<AstNode*>(nodep->user5p()));
-            }
+            UASSERT_OBJ(!nodep->user5p(), nodep,
+                        "Node originally inserted below logic vertex "
+                        <<static_cast<AstNode*>(nodep->user5p()));
             nodep->user5p(const_cast<void*>(reinterpret_cast<const void*>(m_startNodep)));
         }
 
@@ -180,13 +179,13 @@ private:
         m_instrCount = 0;
         iterateAndNextNull(nodep->ifsp());
         uint32_t ifCount = m_instrCount;
-        if (nodep->branchPred() == AstBranchPred::BP_UNLIKELY) ifCount = 0;
+        if (nodep->branchPred().unlikely()) ifCount = 0;
 
         UINFO(8, "elsesp:\n");
         m_instrCount = 0;
         iterateAndNextNull(nodep->elsesp());
         uint32_t elseCount = m_instrCount;
-        if (nodep->branchPred() == AstBranchPred::BP_LIKELY) elseCount = 0;
+        if (nodep->branchPred().likely()) elseCount = 0;
 
         if (ifCount >= elseCount) {
             m_instrCount = savedCount + ifCount;
@@ -235,25 +234,20 @@ private:
         // are no actives-under-actives.  In any case, check that we're at
         // root:
         markCost(nodep);
-        if (nodep != m_startNodep) {
-            nodep->v3fatalSrc("Multiple actives, or not start node");
-        }
+        UASSERT_OBJ(nodep == m_startNodep, nodep, "Multiple actives, or not start node");
     }
     virtual void visit(AstCCall* nodep) {
         VisitBase vb(this, nodep);
         iterateChildren(nodep);
         m_tracingCall = true;
         iterate(nodep->funcp());
-        if (m_tracingCall) {
-            nodep->v3fatalSrc("visit(AstCFunc) should have cleared m_tracingCall.");
-        }
+        UASSERT_OBJ(!m_tracingCall, nodep, "visit(AstCFunc) should have cleared m_tracingCall.");
     }
     virtual void visit(AstCFunc* nodep) {
         // Don't count a CFunc other than by tracing a call or counting it
         // from the root
-        if (!m_tracingCall && (nodep != m_startNodep)) {
-            nodep->v3fatalSrc("AstCFunc not under AstCCall, or not start node");
-        }
+        UASSERT_OBJ(m_tracingCall || nodep == m_startNodep, nodep,
+                    "AstCFunc not under AstCCall, or not start node");
         m_tracingCall = false;
         bool saved_inCFunc = m_inCFunc;
         m_inCFunc = true;
@@ -287,7 +281,7 @@ public:
     InstrCountDumpVisitor(AstNode* nodep, std::ostream* osp)
         : m_osp(osp), m_depth(0) {
         // No check for NULL output, so...
-        if (!osp) nodep->v3fatalSrc("Don't call if not dumping");
+        UASSERT_OBJ(osp, nodep, "Don't call if not dumping");
         if (nodep) iterate(nodep);
     }
     virtual ~InstrCountDumpVisitor() {}

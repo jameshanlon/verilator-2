@@ -6,14 +6,14 @@
 
 #AC_INIT([Verilator],[#.### YYYY-MM-DD])
 #AC_INIT([Verilator],[#.### devel])
-AC_INIT([Verilator],[4.010 2019-01-27],
+AC_INIT([Verilator],[4.020 devel],
         [https://www.veripool.org/verilator],
         [verilator],[https://www.veripool.org/verilator])
 # When releasing, also update header of Changes file
 # and commit using "devel release" or "Version bump" message
 
 AC_CONFIG_HEADER(src/config_build.h)
-AC_CONFIG_FILES(Makefile src/Makefile src/Makefile_obj include/verilated.mk include/verilated_config.h verilator.pc)
+AC_CONFIG_FILES(Makefile docs/Makefile src/Makefile src/Makefile_obj include/verilated.mk include/verilated_config.h verilator.pc verilator-config.cmake verilator-config-version.cmake)
 
 AC_MSG_RESULT([configuring for $PACKAGE_STRING])
 
@@ -91,10 +91,10 @@ AC_SUBST(CFG_WITH_PREC11)
 AC_MSG_RESULT($CFG_WITH_PREC11)
 
 # Compiler flags
-CFLAGS=-I${includedir}
-CPPFLAGS=-I${includedir}
-CXXFLAGS=-I${includedir}
-LDFLAGS=-L${libdir}
+CFLAGS+=" -I${includedir}"
+CPPFLAGS+=" -I${includedir}"
+CXXFLAGS+=" -I${includedir}"
+LDFLAGS+=" -L${libdir}"
 
 # Checks for programs.
 AC_PROG_CC
@@ -273,25 +273,42 @@ AC_SUBST(CFG_CXXFLAGS_PARSER)
 # without this flag, even though there's a conditional to prevent the divide.
 # We still don't add no-div-by-zero as it throws message to stdout, though doesn't die.
 #_MY_CXX_CHECK_OPT(-Wno-div-by-zero)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-faligned-new)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-fbracket-depth=4096)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Qunused-arguments)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-bool-operation)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-parentheses-equality)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-sign-compare)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-uninitialized)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-unused-but-set-variable)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-unused-parameter)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-unused-variable)
-_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-Wno-shadow)
+# For some reason -faligned-new does not work under Travis w/ clang but the
+# configure test doesn't catch this either
+AS_IF([test "x$TRAVIS_COMPILER" != xclang], [_MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,-faligned-new)])
+CFG_CXX_FLAGS_CMAKE="-faligned-new"
+m4_foreach([cflag],[
+        [-fbracket-depth=4096],
+        [-fcf-protection=none],
+        [-mno-cet],
+        [-Qunused-arguments],
+        [-Wno-bool-operation],
+        [-Wno-parentheses-equality],
+        [-Wno-sign-compare],
+        [-Wno-uninitialized],
+        [-Wno-unused-but-set-variable],
+        [-Wno-unused-parameter],
+        [-Wno-unused-variable],
+        [-Wno-shadow]],[
+    _MY_CXX_CHECK_OPT(CFG_CXXFLAGS_NO_UNUSED,cflag)
+    # CMake will test what flags work itself, so pass all flags through to it
+    CFG_CXX_FLAGS_CMAKE="$CFG_CXX_FLAGS_CMAKE cflag"
+    ])
 AC_SUBST(CFG_CXXFLAGS_NO_UNUSED)
+AC_SUBST(CFG_CXX_FLAGS_CMAKE)
 
 # Find multithread linker flags
-_MY_LDLIBS_CHECK_OPT(CFG_LDLIBS_THREADS,-mt)
-_MY_LDLIBS_CHECK_OPT(CFG_LDLIBS_THREADS,-pthread)
-_MY_LDLIBS_CHECK_OPT(CFG_LDLIBS_THREADS,-lpthread)
-_MY_LDLIBS_CHECK_OPT(CFG_LDLIBS_THREADS,-latomic)
+m4_foreach([ldflag], [
+        [-mt],
+        [-pthread],
+        [-lpthread],
+        [-latomic]],[
+    _MY_LDLIBS_CHECK_OPT(CFG_LDLIBS_THREADS,ldflag)
+    # CMake will test what flags work itself, so pass all flags through to it
+    CFG_LDFLAGS_THREADS_CMAKE="$CFG_LDFLAGS_THREADS_CMAKE ldflag"
+    ])
 AC_SUBST(CFG_LDLIBS_THREADS)
+AC_SUBST(CFG_LDFLAGS_THREADS_CMAKE)
 
 # Set CFG_WITH_THREADED if can support threading
 AC_MSG_CHECKING(whether $CXX supports Verilated threads)

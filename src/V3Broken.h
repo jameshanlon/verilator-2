@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3BROKEN_H_
 #define _V3BROKEN_H_ 1
 
@@ -34,6 +34,7 @@ public:
     static void brokenAll(AstNetlist* nodep);
     static void addNewed(AstNode* nodep);
     static void deleted(AstNode* nodep);
+    static bool isAllocated(AstNode* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

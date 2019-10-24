@@ -545,7 +545,7 @@ public:
     }
     virtual int cost(const TspTestState* otherp) const {
         // For test purposes, each TspTestState is merely a point
-        // on the cartesian plane; cost is the linear distance
+        // on the Cartesian plane; cost is the linear distance
         // between two points.
         unsigned xabs, yabs;
         xabs = diff(otherp->m_xpos, m_xpos);
@@ -598,7 +598,7 @@ void V3TSP::selfTestStates() {
         expect.push_back(&s20);
         expect.push_back(&s10);
         expect.push_back(&s5);
-        if (expect != result) {
+        if (VL_UNCOVERABLE(expect != result)) {
             for (V3TSP::StateVec::iterator it = result.begin();
                  it != result.end(); ++it) {
                 const TspTestState* statep = dynamic_cast<const TspTestState*>(*it);
@@ -641,7 +641,7 @@ void V3TSP::selfTestStates() {
         expect.push_back(&d);
         expect.push_back(&e);
 
-        if (expect != result) {
+        if (VL_UNCOVERABLE(expect != result)) {
             for (V3TSP::StateVec::iterator it = result.begin();
                  it != result.end(); ++it) {
                 const TspTestState* statep = dynamic_cast<const TspTestState*>(*it);
@@ -689,7 +689,7 @@ void V3TSP::selfTestString() {
     expect.push_back("2");
     expect.push_back("3");
 
-    if (expect != result) {
+    if (VL_UNCOVERABLE(expect != result)) {
         for (std::vector<string>::iterator it = result.begin(); it != result.end(); ++it) {
             cout<<*it<<" ";
         }

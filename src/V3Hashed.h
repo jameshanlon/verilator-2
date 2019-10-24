@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3HASHED_H_
 #define _V3HASHED_H_ 1
 #include "config_build.h"
@@ -40,25 +40,25 @@ public:
 
 //============================================================================
 
-struct V3HashedUserCheck {
+struct V3HashedUserSame {
     // Functor for V3Hashed::findDuplicate
-    virtual bool check(AstNode*,AstNode*) =0;
-    V3HashedUserCheck() {}
-    virtual ~V3HashedUserCheck() {}
+    virtual bool isSame(AstNode*, AstNode*) = 0;
+    V3HashedUserSame() {}
+    virtual ~V3HashedUserSame() {}
 };
 
 class V3Hashed : public VHashedBase {
     // NODE STATE
-    //  AstNode::user4()	-> V3Hash.  Hash value of this node (hash of 0 is illegal)
-    AstUser4InUse	m_inuser4;
+    //  AstNode::user4()        -> V3Hash.  Hash value of this node (hash of 0 is illegal)
+    AstUser4InUse m_inuser4;
 
     // TYPES
-    typedef std::multimap<V3Hash,AstNode*> HashMmap;
 public:
+    typedef std::multimap<V3Hash,AstNode*> HashMmap;
     typedef HashMmap::iterator iterator;
 private:
     // MEMBERS
-    HashMmap		m_hashMmap;	// hashvalue -> nodes with that hash
+    HashMmap m_hashMmap;  // hashvalue -> nodes with that hash
 
 public:
     // CONSTRUCTORS
@@ -66,18 +66,19 @@ public:
     ~V3Hashed() {}
 
     // ACCESSORS
-    HashMmap& mmap() { return m_hashMmap; }	// Return map for iteration
+    HashMmap& mmap() { return m_hashMmap; }  // Return map for iteration
     iterator begin() { return m_hashMmap.begin(); }
     iterator end() { return m_hashMmap.end(); }
 
     // METHODS
     void clear() { m_hashMmap.clear(); AstNode::user4ClearTree(); }
-    iterator hashAndInsert(AstNode* nodep);	// Hash the node, and insert into map. Return iterator to inserted
-    void hash(AstNode* nodep);	// Only hash the node
-    bool sameNodes(AstNode* node1p, AstNode* node2p);	// After hashing, and tell if identical
-    void erase(iterator it);		// Remove node from structures
-    iterator findDuplicate(AstNode* nodep);	// Return duplicate in hash, if any
-    iterator findDuplicate(AstNode* nodep, V3HashedUserCheck* checkp);	// Extra user checks for sameness
+    void check();  // Check assertions on structure
+    iterator hashAndInsert(AstNode* nodep);  // Hash the node, and insert into map. Return iterator to inserted
+    void hash(AstNode* nodep);  // Only hash the node
+    bool sameNodes(AstNode* node1p, AstNode* node2p);  // After hashing, and tell if identical
+    void erase(iterator it);  // Remove node from structures
+    // Return duplicate in hash, if any, with optional user check for sameness
+    iterator findDuplicate(AstNode* nodep, V3HashedUserSame* checkp=NULL);
     AstNode* iteratorNodep(iterator it) { return it->second; }
     void dumpFile(const string& filename, bool tree);
     void dumpFilePrefixed(const string& nameComment, bool tree=false);
@@ -86,4 +87,4 @@ public:
     static V3Hash uncachedHash(const AstNode* nodep);
 };
 
-#endif // Guard
+#endif  // Guard

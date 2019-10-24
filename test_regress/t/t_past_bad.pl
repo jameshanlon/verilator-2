@@ -7,16 +7,12 @@ if (!$::Driver) { use FindBin; exec("$FindBin::Bin/bootstrap.pl", @ARGV, $0); di
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
 
-scenarios(vlt_all => 1);
+scenarios(vlt => 1);
 
 compile(
     fails => 1,
-    expect =>
-'%Error: t/t_past_bad.v:\d+:.* \$past tick value must be constant and >= 1 \(IEEE 2017 16.9.3\)
-%Warning-TICKCOUNT: t/t_past_bad.v:\d+: \$past tick value of 10000 may have a large performance cost
-.*%Error: Exiting due to.*',
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);
 1;
-

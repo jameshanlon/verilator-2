@@ -11,13 +11,10 @@ scenarios(vlt => 1);
 
 top_filename("t/t_flag_werror.v");
 
-compile(
-    v_flags2 => ["--lint-only"],
+lint(
     fails => 1,
     verilator_flags => [qw(-cc -Werror-WIDTH)],
-    expect =>
-q{%Error-WIDTH: t/t_flag_werror.v:\d+: Operator ASSIGNW expects 4 bits on the Assign RHS, but Assign RHS.s CONST '6'h2e' generates 6 bits.
-%Error: Exiting due to},
+    expect_filename => $Self->{golden_filename},
     );
 
 ok(1);

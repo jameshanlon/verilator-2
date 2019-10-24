@@ -12,14 +12,15 @@ scenarios(simulator => 1);
 top_filename("t/t_inst_tree.v");
 
 compile(
-    verilator_flags2 => ['+define+NOUSE_INLINE', '+define+USE_PUBLIC', '--stats', '--norelative-cfuncs'],
+    verilator_flags2 => ['+define+NOUSE_INLINE', '+define+USE_PUBLIC', '--stats', '--norelative-cfuncs',
+                         $Self->wno_unopthreads_for_few_cores()]
     );
 
 if ($Self->{vlt_all}) {
     # Fewer optimizations than t_inst_tree_inl0_pub1 which allows
     # relative CFuncs:
-    file_grep ($Self->{stats}, qr/Optimizations, Combined CFuncs\s+(\d+)/i,
-               ($Self->{vltmt} ? 0 : 31));
+    file_grep($Self->{stats}, qr/Optimizations, Combined CFuncs\s+(\d+)/i,
+              ($Self->{vltmt} ? 0 : 31));
 
     # Should not find any 'this->' except some 'this->__VlSymsp'
     my @files = `ls $Self->{obj_dir}/*.cpp`;

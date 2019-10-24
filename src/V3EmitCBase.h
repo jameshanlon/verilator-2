@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3EMITCBASE_H_
 #define _V3EMITCBASE_H_ 1
 
@@ -37,56 +37,65 @@
 class EmitCBaseVisitor : public AstNVisitor {
 public:
     // STATE
-    V3OutCFile*	m_ofp;
+    V3OutCFile* m_ofp;
+    bool m_trackText;  // Always track AstText nodes
     // METHODS
-    V3OutCFile*	ofp() const { return m_ofp; }
+    V3OutCFile* ofp() const { return m_ofp; }
     void puts(const string& str) { ofp()->puts(str); }
     void putbs(const string& str) { ofp()->putbs(str); }
     void putsDecoration(const string& str) { if (v3Global.opt.decoration()) puts(str); }
     void putsQuoted(const string& str) { ofp()->putsQuoted(str); }
     bool optSystemC() { return v3Global.opt.systemC(); }
-    static string symClassName() { return v3Global.opt.prefix()+"__Syms"; }
+    static string protect(const string& name) { return VIdProtect::protectIf(name, true); }
+    static string protectIf(const string& name, bool doIt) {
+        return VIdProtect::protectIf(name, doIt); }
+    static string protectWordsIf(const string& name, bool doIt) {
+        return VIdProtect::protectWordsIf(name, doIt); }
+    static string ifNoProtect(const string& in) { return v3Global.opt.protectIds() ? "" : in; }
+    static string symClassName() { return v3Global.opt.prefix()+"_"+protect("_Syms"); }
     static string symClassVar()  { return symClassName()+"* __restrict vlSymsp"; }
-    static string symTopAssign() { return v3Global.opt.prefix()+"* __restrict vlTOPp VL_ATTR_UNUSED = vlSymsp->TOPp;"; }
-    static string modClassName(AstNodeModule* modp) {	// Return name of current module being processed
-	if (modp->isTop()) {
-	    return v3Global.opt.prefix();
-	} else {
-	    return v3Global.opt.modPrefix() + "_" + modp->name();
-	}
+    static string symTopAssign() {
+        return v3Global.opt.prefix()+"* __restrict vlTOPp VL_ATTR_UNUSED = vlSymsp->TOPp;"; }
+    static string modClassName(AstNodeModule* modp) {  // Return name of current module being processed
+        if (modp->isTop()) {
+            return v3Global.opt.prefix();
+        } else {
+            return v3Global.opt.modPrefix()+"_"+protect(modp->name());
+        }
     }
-    static string topClassName() {		// Return name of top wrapper module
-	return v3Global.opt.prefix();
+    static string topClassName() {  // Return name of top wrapper module
+        return v3Global.opt.prefix();
     }
     static AstCFile* newCFile(const string& filename, bool slow, bool source) {
-	AstCFile* cfilep = new AstCFile(v3Global.rootp()->fileline(), filename);
-	cfilep->slow(slow);
-	cfilep->source(source);
-	v3Global.rootp()->addFilesp(cfilep);
-	return cfilep;
+        AstCFile* cfilep = new AstCFile(v3Global.rootp()->fileline(), filename);
+        cfilep->slow(slow);
+        cfilep->source(source);
+        v3Global.rootp()->addFilesp(cfilep);
+        return cfilep;
     }
     string cFuncArgs(const AstCFunc* nodep) {
-	// Return argument list for given C function
-	string args = nodep->argTypes();
-	// Might be a user function with argument list.
+        // Return argument list for given C function
+        string args = nodep->argTypes();
+        // Might be a user function with argument list.
         for (const AstNode* stmtp = nodep->argsp(); stmtp; stmtp=stmtp->nextp()) {
             if (const AstVar* portp = VN_CAST_CONST(stmtp, Var)) {
-		if (portp->isIO() && !portp->isFuncReturn()) {
-		    if (args != "") args+= ", ";
-		    if (nodep->dpiImport() || nodep->dpiExportWrapper())
-			args += portp->dpiArgType(true,false);
-		    else if (nodep->funcPublic())
-			args += portp->cPubArgType(true,false);
-		    else args += portp->vlArgType(true,false,true);
-		}
-	    }
-	}
-	return args;
+                if (portp->isIO() && !portp->isFuncReturn()) {
+                    if (args != "") args+= ", ";
+                    if (nodep->dpiImport() || nodep->dpiExportWrapper())
+                        args += portp->dpiArgType(true, false);
+                    else if (nodep->funcPublic())
+                        args += portp->cPubArgType(true, false);
+                    else args += portp->vlArgType(true, false, true);
+                }
+            }
+        }
+        return args;
     }
 
     // CONSTRUCTORS
     EmitCBaseVisitor() {
-	m_ofp = NULL;
+        m_ofp = NULL;
+        m_trackText = false;
     }
     virtual ~EmitCBaseVisitor() {}
 };
@@ -96,21 +105,21 @@ public:
 
 class EmitCBaseCounterVisitor : public AstNVisitor {
 private:
-    // STATE
-    int			m_count;	// Number of statements
+    // MEMBERS
+    int m_count;  // Number of statements
     // VISITORS
     virtual void visit(AstNode* nodep) {
-	m_count++;
+        m_count++;
         iterateChildren(nodep);
     }
 public:
-    // CONSTUCTORS
+    // CONSTRUCTORS
     explicit EmitCBaseCounterVisitor(AstNode* nodep) {
-	m_count = 0;
+        m_count = 0;
         iterate(nodep);
     }
     virtual ~EmitCBaseCounterVisitor() {}
     int count() const { return m_count; }
 };
 
-#endif // guard
+#endif  // guard

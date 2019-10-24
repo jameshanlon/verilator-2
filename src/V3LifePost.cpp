@@ -24,10 +24,10 @@
 //              ASSIGN(Vdly, a)
 //              ... {no reads or writes of a after the first write to Vdly}
 //              ... {no reads of a after the first write to Vdly}
-//              ASSIGNPOST(Vdly,tmp)
+//              ASSIGNPOST(Vdly, tmp)
 //
 //*************************************************************************
-
+
 #include "config_build.h"
 #include "verilatedos.h"
 
@@ -51,7 +51,8 @@ private:
 
     // NODE STATE
     // INPUT:
-    //  AstVarScope::user4p()   -> AstVarScope*, If set, replace this varscope with specified new one
+    //  AstVarScope::user4p()   -> AstVarScope*, If set, replace this
+    //                             varscope with specified new one
     // STATE
     // METHODS
     VL_DEBUG_FUNC;  // Declare debug()
@@ -59,7 +60,7 @@ private:
     // VISITORS
     virtual void visit(AstVarRef* nodep) {
         AstVarScope* vscp = nodep->varScopep();
-        if (!vscp) nodep->v3fatalSrc("Scope not assigned");
+        UASSERT_OBJ(vscp, nodep, "Scope not assigned");
         if (AstVarScope* newvscp = reinterpret_cast<AstVarScope*>(vscp->user4p())) {
             UINFO(9, "  Replace "<<nodep<<" to "<<newvscp<<endl);
             AstVarRef* newrefp = new AstVarRef(nodep->fileline(), newvscp, nodep->lvalue());
@@ -145,7 +146,7 @@ private:
     //                                  // local to the current MTask.
     const ExecMTask*    m_execMTaskp;   // Current ExecMTask being processed,
     //                                  // or NULL for serial code.
-    V3Double0           m_statAssnDel;  // Statistic tracking
+    VDouble0            m_statAssnDel;  // Statistic tracking
     bool                m_tracingCall;  // Currently tracing a CCall to a CFunc
 
     // Map each varscope to one or more locations where it's accessed.
@@ -223,7 +224,7 @@ private:
             // Proof (1)
             const std::set<LifeLocation>& dlyVarReads = m_reads[dlyVarp];
             if (!dlyVarReads.empty()) {
-                continue; // do not scrunch, go to next LifePostLocation
+                continue;  // do not scrunch, go to next LifePostLocation
             }
 
             // Proof (2)
@@ -266,14 +267,12 @@ private:
         iterateChildren(nodep);
 
         if (v3Global.opt.mtasks()) {
-            if (!m_mtasksGraphp) {
-                nodep->v3fatalSrc("Should have initted m_mtasksGraphp by now");
-            }
+            UASSERT_OBJ(m_mtasksGraphp, nodep,
+                        "Should have initted m_mtasksGraphp by now");
             m_checker.reset(new GraphPathChecker(m_mtasksGraphp));
         } else {
-            if (m_mtasksGraphp) {
-                nodep->v3fatalSrc("Did not expect any m_mtasksGraphp in serial mode");
-            }
+            UASSERT_OBJ(!m_mtasksGraphp, nodep,
+                        "Did not expect any m_mtasksGraphp in serial mode");
         }
 
         // Find all assignposts. Determine which ones can be
@@ -288,7 +287,7 @@ private:
     virtual void visit(AstVarRef* nodep) {
         // Consumption/generation of a variable,
         AstVarScope* vscp = nodep->varScopep();
-        if (!vscp) nodep->v3fatalSrc("Scope not assigned");
+        UASSERT_OBJ(vscp, nodep, "Scope not assigned");
 
         LifeLocation loc(m_execMTaskp, ++m_sequence);
         if (nodep->lvalue()) {
@@ -310,9 +309,8 @@ private:
         if (AstVarRef* rhsp = VN_CAST(nodep->rhsp(), VarRef)) {
             // rhsp is the dly var
             AstVarScope* dlyVarp = rhsp->varScopep();
-            if (m_assignposts.find(dlyVarp) != m_assignposts.end()) {
-                nodep->v3fatalSrc("LifePostLocation attempted duplicate dlyvar map addition");
-            }
+            UASSERT_OBJ(m_assignposts.find(dlyVarp) == m_assignposts.end(), nodep,
+                        "LifePostLocation attempted duplicate dlyvar map addition");
             LifeLocation loc(m_execMTaskp, ++m_sequence);
             m_assignposts[dlyVarp] = LifePostLocation(loc, nodep);
         }

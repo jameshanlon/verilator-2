@@ -17,7 +17,7 @@
 // GNU General Public License for more details.
 //
 //*************************************************************************
-
+
 #ifndef _V3EMITV_H_
 #define _V3EMITV_H_ 1
 
@@ -33,8 +33,10 @@ class V3EmitV {
 public:
     static void emitv();
     static void verilogForTree(AstNode* nodep, std::ostream& os=std::cout);
-    static void verilogPrefixedTree(AstNode* nodep, std::ostream& os, const string& prefix, int flWidth,
+    static void verilogPrefixedTree(AstNode* nodep, std::ostream& os,
+                                    const string& prefix, int flWidth,
                                     AstSenTree* domainp, bool user3mark);
+    static void emitvFiles();
 };
 
-#endif // Guard
+#endif  // Guard
