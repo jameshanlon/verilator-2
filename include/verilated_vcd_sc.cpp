@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -32,7 +32,7 @@
     // SystemC 2.1.v1
 // cppcheck-suppress unusedFunction
 void VerilatedVcdSc::write_comment(const std::string &) {}
-void VerilatedVcdSc::trace(const unsigned int &, const std::string &, const char **) {}
+void VerilatedVcdSc::trace(const unsigned int &, const std::string &, const char**) {}
 
 # define DECL_TRACE_METHOD_A(tp) \
     void VerilatedVcdSc::trace( const tp& object, const std::string& name ) {}
@@ -82,7 +82,7 @@ void VerilatedVcdSc::trace(const unsigned int &, const std::string &, const char
     // SystemC 2.0.1
 // cppcheck-suppress unusedFunction
 void VerilatedVcdSc::write_comment(const sc_string &) {}
-void VerilatedVcdSc::trace(const unsigned int &, const sc_string &, const char **) {}
+void VerilatedVcdSc::trace(const unsigned int&, const sc_string&, const char**) {}
 
 #define DECL_TRACE_METHOD_A(tp) \
     void VerilatedVcdSc::trace( const tp& object, const sc_string& name ) {}
@@ -125,7 +125,7 @@ void VerilatedVcdSc::trace(const unsigned int &, const sc_string &, const char *
     // SystemC 1.2.1beta
 // cppcheck-suppress unusedFunction
 void VerilatedVcdSc::write_comment(const sc_string &) {}
-void VerilatedVcdSc::trace(const unsigned int &, const sc_string &, const char **) {}
+void VerilatedVcdSc::trace(const unsigned int&, const sc_string&, const char**) {}
 
 #define DECL_TRACE_METHOD_A(tp) \
     void VerilatedVcdSc::trace( const tp& object, const sc_string& name ) {}

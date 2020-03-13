@@ -3,11 +3,11 @@
 #
 # This file is part of Verilator.
 #
-# Code available from: http://www.veripool.org/verilator
+# Code available from: https://verilator.org
 #
 #*****************************************************************************
 #
-# Copyright 2003-2019 by Wilson Snyder. This program is free software; you can
+# Copyright 2003-2020 by Wilson Snyder. This program is free software; you can
 # redistribute it and/or modify it under the terms of either the GNU
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
@@ -103,7 +103,7 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 
 SHELL = /bin/sh
 
-SUBDIRS = src test_regress \
+SUBDIRS = docs src test_regress \
 	examples/cmake_hello_c \
 	examples/cmake_hello_sc \
 	examples/cmake_tracing_c \
@@ -114,9 +114,11 @@ SUBDIRS = src test_regress \
 	examples/make_tracing_c \
 	examples/make_tracing_sc \
 	examples/make_protect_lib \
+	examples/xml_py \
 
-INFOS = README README.html README.pdf \
-        verilator.txt verilator.html verilator.pdf
+INFOS = verilator.txt verilator.html verilator.pdf
+
+INFOS_OLD = README README.html README.pdf
 
 # Files that can be generated, but should be up to date for a distribution.
 DISTDEP = info Makefile
@@ -127,6 +129,7 @@ DISTFILES_INC = $(INFOS) .gitignore \
 	Changes \
 	LICENSE \
 	MANIFEST.SKIP \
+	README.adoc \
 	verilator-config.cmake.in \
 	verilator-config-version.cmake.in \
 	bin/verilator \
@@ -142,8 +145,10 @@ DISTFILES_INC = $(INFOS) .gitignore \
 	docs/TODO \
 	docs/doxygen-mainpage \
 	docs/doxygen.config \
+	docs/install.adoc \
 	docs/internals.adoc \
 	docs/verilator_logo.png \
+	docs/xml.adoc \
 	install-sh configure *.pod \
 	include/*.[chv]* \
 	include/*.in \
@@ -157,7 +162,7 @@ DISTFILES_INC = $(INFOS) .gitignore \
 	src/.gdbinit \
 	src/*.pl src/*.pod \
 	examples/*/.*ignore examples/*/Makefile* \
-	examples/*/*.[chv]* examples/*/*.pl \
+	examples/*/*.[chv]* examples/*/vl_* \
 	examples/*/CMakeLists.txt \
 	test_*/.*ignore test_*/Makefile* test_*/*.cpp \
 	test_*/*.pl test_*/*.v test_*/*.vc test_*/*.vh \
@@ -202,12 +207,6 @@ EXAMPLES_FIRST = \
 	examples/make_hello_sc \
 
 EXAMPLES = $(EXAMPLES_FIRST) $(filter-out $(EXAMPLES_FIRST), $(sort $(wildcard examples/*)))
-
-ifeq ($(OBJCACHE_JOBS),)
-ifneq ($(OBJCACHE_HOSTS),)
-export OBJCACHE_JOBS := -j $(shell objcache --jobs "$(OBJCACHE_HOSTS)")
-endif
-endif
 
 # See uninstall also - don't put wildcards in this variable, it might uninstall other stuff
 VL_INST_MAN_FILES = verilator.1 verilator_coverage.1 verilator_gantt.1 verilator_profcfunc.1
@@ -280,22 +279,6 @@ verilator.pdf: ${srcdir}/bin/verilator Makefile $(POD2LATEXFIX)
 	pdflatex verilator.tex
 	pdflatex verilator.tex
 	-rm -f verilator.toc verilator.aux verilator.idx verilator.out
-
-README: README.pod
-	-rm -f $@
-	$(POD2TEXT) --loose $< > $@
-
-README.html: README.pod
-	pod2html $< >$@
-
-# PDF needs DIST variables; but having configure.ac as dependency isn't detected
-README.pdf: README.pod Makefile $(POD2LATEXFIX)
-	pod2latex --full --out README.tex $<
-	$(PERL) $(POD2LATEXFIX) "$(DISTTITLE) README File" "${DISTDATE}" < README.tex > README2.tex
-	mv README2.tex README.tex
-	pdflatex README.tex
-	pdflatex README.tex
-	-rm -f README.toc README.aux README.idx README.out
 
 # See uninstall also - don't put wildcards in this variable, it might uninstall other stuff
 VL_INST_BIN_FILES = verilator verilator_bin verilator_bin_dbg verilator_coverage_bin_dbg \
@@ -485,7 +468,7 @@ install-msg:
 	@echo "Installed examples to $(DESTDIR)$(pkgdatadir)/examples"
 	@echo
 	@echo "For documentation see 'man verilator' or 'verilator --help'"
-	@echo "For forums and to report bugs see http://www.veripool.org/verilator"
+	@echo "For forums and to report bugs see https://verilator.org"
 	@echo
 
 IN_WILD := ${srcdir}/*.in ${srcdir}/*/*.in
@@ -526,10 +509,11 @@ clean mostlyclean distclean maintainer-clean::
 	rm -f *.tex
 	rm -rf examples/*/obj_dir* examples/*/logs
 	rm -rf test_*/obj_dir
+	rm -rf nodist/fuzzer/dictionary
 	rm -rf nodist/obj_dir
 
 distclean maintainer-clean::
-	rm -f *.info* *.1 $(INFOS) $(VL_INST_MAN_FILES)
+	rm -f *.info* *.1 $(INFOS) $(INFOS_OLD) $(VL_INST_MAN_FILES)
 	rm -f Makefile config.status config.cache config.log TAGS
 	rm -f verilator_bin* verilator_coverage_bin*
 	rm -f bin/verilator_bin* bin/verilator_coverage_bin*

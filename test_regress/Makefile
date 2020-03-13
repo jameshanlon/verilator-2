@@ -5,7 +5,7 @@
 # This calls the object directory makefile.  That allows the objects to
 # be placed in the "current directory" which simplifies the Makefile.
 #
-# Copyright 2003-2019 by Wilson Snyder. This program is free software; you can
+# Copyright 2003-2020 by Wilson Snyder. This program is free software; you can
 # redistribute it and/or modify it under the terms of either the GNU
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
@@ -24,12 +24,12 @@ include $(VERILATOR_ROOT)/include/verilated.mk
 ######################################################################
 
 ifneq ($(VCS_HOME),)
-#Default to off, even with vcs; not all tests are insured to be working
+#Default to off, even with vcs; not all tests are ensured to be working
 #PRODUCTS += --vcs
 endif
 
 ifneq ($(NC_ROOT),)
-#Default to off, even with vcs; not all tests are insured to be working
+#Default to off, even with vcs; not all tests are ensured to be working
 #PRODUCTS += --nc
 endif
 
@@ -43,10 +43,11 @@ endif
 ######################################################################
 
 SCENARIOS ?= --vlt --vltmt --dist
+DRIVER_HASHSET ?=
 
 .PHONY: test
 test:
-	$(PERL) driver.pl $(DRIVER_FLAGS) $(SCENARIOS)
+	$(PERL) driver.pl $(DRIVER_FLAGS) $(SCENARIOS) $(DRIVER_HASHSET)
 
 ######################################################################
 

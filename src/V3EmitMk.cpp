@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Emit Makefile
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2004-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -51,11 +51,14 @@ public:
         of.puts("\n### Switches...\n");
         of.puts("# Coverage output mode?  0/1 (from --coverage)\n");
         of.puts("VM_COVERAGE = "); of.puts(v3Global.opt.coverage()?"1":"0"); of.puts("\n");
+        of.puts("# Parallel builds?  0/1 (from --output-split)\n");
+        of.puts("VM_PARALLEL_BUILDS = ");
+        of.puts(v3Global.opt.outputSplit() ? "1" : "0"); of.puts("\n");
         of.puts("# Threaded output mode?  0/1/N threads (from --threads)\n");
         of.puts("VM_THREADS = "); of.puts(cvtToStr(v3Global.opt.threads())); of.puts("\n");
         of.puts("# Tracing output mode?  0/1 (from --trace)\n");
         of.puts("VM_TRACE = "); of.puts(v3Global.opt.trace()?"1":"0"); of.puts("\n");
-        of.puts("# Tracing threadeds output mode?  0/1 (from --trace-fst-thread)\n");
+        of.puts("# Tracing threaded output mode?  0/1 (from --trace-fst-thread)\n");
         of.puts("VM_TRACE_THREADED = "); of.puts(v3Global.opt.traceFormat().threaded()
                                                  ?"1":"0"); of.puts("\n");
 
@@ -85,12 +88,12 @@ public:
                         putMakeClassEntry(of, "verilated_cov.cpp");
                     }
                     if (v3Global.opt.trace()) {
-                        putMakeClassEntry(of, v3Global.opt.traceSourceName()+"_c.cpp");
+                        putMakeClassEntry(of, v3Global.opt.traceSourceBase() + "_c.cpp");
                         if (v3Global.opt.systemC()) {
                             if (v3Global.opt.traceFormat() != TraceFormat::VCD) {
                                 v3error("Unsupported: This trace format is not supported in SystemC, use VCD format.");
                             } else {
-                                putMakeClassEntry(of, v3Global.opt.traceSourceName()+"_sc.cpp");
+                                putMakeClassEntry(of, v3Global.opt.traceSourceLang() + ".cpp");
                             }
                         }
                     }
@@ -101,8 +104,8 @@ public:
                 else if (support==2 && slow) {
                 }
                 else {
-                    for (AstFile* nodep = v3Global.rootp()->filesp();
-                         nodep; nodep = VN_CAST(nodep->nextp(), File)) {
+                    for (AstNodeFile* nodep = v3Global.rootp()->filesp();
+                         nodep; nodep = VN_CAST(nodep->nextp(), NodeFile)) {
                         AstCFile* cfilep = VN_CAST(nodep, CFile);
                         if (cfilep && cfilep->source()
                             && cfilep->slow()==(slow!=0)
@@ -189,7 +192,7 @@ public:
             string cppfile = *it;
             of.puts("\t"+V3Os::filenameNonExt(cppfile)+" \\\n");
             string dir = V3Os::filenameDir(cppfile);
-            if (dirs.find(dir) == dirs.end()) dirs.insert(dir);
+            dirs.insert(dir);
         }
         of.puts("\n");
 

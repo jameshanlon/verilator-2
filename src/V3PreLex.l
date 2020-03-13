@@ -6,11 +6,11 @@
 /**************************************************************************
  * DESCRIPTION: Verilator: Flex verilog preprocessor
  *
- * Code available from: http://www.veripool.org/verilator
+ * Code available from: https://verilator.org
  *
  **************************************************************************
  *
- * Copyright 2003-2019 by Wilson Snyder.  This program is free software;
+ * Copyright 2003-2020 by Wilson Snyder.  This program is free software;
  * you can redistribute it and/or modify it under the terms of either the
  * GNU Lesser General Public License Version 3 or the Perl Artistic License
  * Version 2.0.
@@ -27,6 +27,9 @@
 
 #include "V3PreProc.h"
 #include "V3PreLex.h"
+#ifdef _WIN32
+# include <io.h> // for isatty
+#endif
 
 V3PreLex* V3PreLex::s_currentLexp = NULL;       // Current lexing point
 
@@ -103,6 +106,13 @@ bom             [\357\273\277]
 <INITIAL>"`undef"       { FL_FWDC; return VP_UNDEF; }
 <INITIAL>"`undefineall" { FL_FWDC; return VP_UNDEFINEALL; }
 <INITIAL>"`error"       { FL_FWDC; if (!pedantic()) return VP_ERROR; else return VP_DEFREF; }
+<INITIAL>"`pragma"{wsn}*[^\n\r]*  { FL_FWDC;
+                          const char* pointp = yytext + strlen("`pragma");
+                          while (isspace(*pointp)) ++pointp;
+                          if (!*pointp && v3Global.opt.pedantic()) {
+                              yyerrorf("`pragma is missing a pragma_expression.");
+                          }
+                          return VP_TEXT; }
 <INITIAL,STRIFY>"`__FILE__"     { FL_FWDC;
                           static string rtnfile;
                           rtnfile = '"'; rtnfile += LEXP->curFilelinep()->filename();
@@ -241,6 +251,11 @@ bom             [\357\273\277]
                           // Note paren level 0 means before "(" of starting args
                           // Level 1 means "," between arguments
                           // Level 2+ means one inside the () of an argument
+                          if (LEXP->m_parenLevel == 1) {  // Starting (
+                              if (!VString::isWhitespace(LEXP->m_defValue)) {
+                                  yyerrorf("Illegal text before '(' that starts define arguments");
+                              }
+                          }
                           if (LEXP->m_parenLevel>1) {
                               appendDefValue(yytext, yyleng); FL_BRK;
                           } else {

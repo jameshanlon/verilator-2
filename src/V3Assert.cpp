@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Collect and print statistics
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2005-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2005-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -44,10 +44,10 @@ private:
     AstNodeModule*      m_modp;         // Last module
     AstBegin*   m_beginp;       // Last begin
     unsigned    m_modPastNum;   // Module past numbering
-    VDouble0    m_statAsCover;  // Statistic tracking
-    VDouble0    m_statAsPsl;    // Statistic tracking
+    VDouble0    m_statCover;  // Statistic tracking
+    VDouble0    m_statAsNotImm;  // Statistic tracking
+    VDouble0    m_statAsImm;    // Statistic tracking
     VDouble0    m_statAsFull;   // Statistic tracking
-    VDouble0    m_statAsSV;     // Statistic tracking
 
     // METHODS
     string assertDisplayMessage(AstNode* nodep, const string& prefix, const string& message) {
@@ -94,7 +94,7 @@ private:
                                            AstDisplayType::DT_ERROR, message, NULL, NULL);
         AstNode* bodysp = dispp;
         replaceDisplay(dispp, "%%Error");  // Convert to standard DISPLAY format
-        bodysp->addNext(new AstStop(nodep->fileline()));
+        bodysp->addNext(new AstStop(nodep->fileline(), true));
         return bodysp;
     }
 
@@ -104,94 +104,77 @@ private:
         return bodysp;
     }
 
-    void newPslAssertion(AstNode* nodep, AstNode* propp, AstSenTree* sentreep,
-                         AstNode* stmtsp, const string& message) {
-        propp->unlinkFrBack();
-        sentreep->unlinkFrBack();
-        if (stmtsp) stmtsp->unlinkFrBack();
+    void newPslAssertion(AstNodeCoverOrAssert* nodep, AstNode* failsp) {
+        if (m_beginp && nodep->name() == "") nodep->name(m_beginp->name());
+
+        AstNode* propp = nodep->propp()->unlinkFrBackWithNext();
+        AstSenTree* sentreep = nodep->sentreep();
+        const string& message = nodep->name();
+        AstNode* passsp = nodep->passsp();
+        if (passsp) passsp->unlinkFrBackWithNext();
+        if (failsp) failsp->unlinkFrBackWithNext();
+
+        if (nodep->immediate()) {
+            UASSERT_OBJ(!sentreep, nodep, "Immediate assertions don't have sensitivity");
+        } else {
+            UASSERT_OBJ(sentreep, nodep, "Concurrent assertions must have sensitivity");
+            sentreep->unlinkFrBack();
+        }
         //
         AstNode* bodysp = NULL;
         bool selfDestruct = false;
         AstIf* ifp = NULL;
-        if (AstPslCover* snodep = VN_CAST(nodep, PslCover)) {
-            ++m_statAsCover;
+        if (AstCover* snodep = VN_CAST(nodep, Cover)) {
+            ++m_statCover;
             if (!v3Global.opt.coverageUser()) {
                 selfDestruct = true;
             } else {
                 // V3Coverage assigned us a bucket to increment.
                 AstCoverInc* covincp = VN_CAST(snodep->coverincp(), CoverInc);
                 UASSERT_OBJ(covincp, snodep, "Missing AstCoverInc under assertion");
-                covincp->unlinkFrBack();
+                covincp->unlinkFrBackWithNext();  // next() might have  AstAssign for trace
                 if (message!="") covincp->declp()->comment(message);
                 bodysp = covincp;
             }
 
-            if (bodysp && stmtsp) bodysp = bodysp->addNext(stmtsp);
+            if (bodysp && passsp) bodysp = bodysp->addNext(passsp);
             ifp = new AstIf(nodep->fileline(), propp, bodysp, NULL);
             bodysp = ifp;
-
-        } else if (VN_IS(nodep, PslAssert)) {
-            ++m_statAsPsl;
-            // Insert an automatic error message and $stop after
-            // any user-supplied statements.
-            AstNode* autoMsgp = newFireAssertUnchecked(nodep, "'assert property' failed.");
-            if (stmtsp) {
-                stmtsp->addNext(autoMsgp);
-            } else {
-                stmtsp = autoMsgp;
-            }
-            ifp = new AstIf(nodep->fileline(), propp, NULL, stmtsp);
+        } else if (VN_IS(nodep, Assert)) {
+            if (nodep->immediate()) ++m_statAsImm;
+            else ++m_statAsNotImm;
+            if (passsp) passsp = newIfAssertOn(passsp);
+            if (failsp) failsp = newIfAssertOn(failsp);
+            if (!failsp) failsp = newFireAssertUnchecked(nodep, "'assert' failed.");
+            ifp = new AstIf(nodep->fileline(), propp, passsp, failsp);
             // It's more LIKELY that we'll take the NULL if clause
             // than the sim-killing else clause:
             ifp->branchPred(VBranchPred::BP_LIKELY);
             bodysp = newIfAssertOn(ifp);
-        } else if (VN_IS(nodep, PslRestrict)) {
-            // IEEE says simulator ignores these
-            pushDeletep(nodep->unlinkFrBack()); VL_DANGLING(nodep);
-            return;
         } else {
             nodep->v3fatalSrc("Unknown node type");
         }
 
-        AstNode* newp = new AstAlways(nodep->fileline(),
-                                      VAlwaysKwd::ALWAYS, sentreep, bodysp);
+        AstNode* newp;
+        if (sentreep) {
+            newp = new AstAlways(nodep->fileline(),
+                                 VAlwaysKwd::ALWAYS, sentreep, bodysp);
+        } else { newp = bodysp; }
         // Install it
         if (selfDestruct) {
             // Delete it after making the tree.  This way we can tell the user
             // if it wasn't constructed nicely or has other errors without needing --coverage.
-            newp->deleteTree();
+            VL_DO_DANGLING(newp->deleteTree(), newp);
             nodep->unlinkFrBack();
         } else {
             nodep->replaceWith(newp);
         }
         // Bye
-        pushDeletep(nodep); VL_DANGLING(nodep);
-    }
-
-    void newVAssertion(AstVAssert* nodep, AstNode* propp) {
-        propp->unlinkFrBackWithNext();
-        AstNode* passsp = nodep->passsp(); if (passsp) passsp->unlinkFrBackWithNext();
-        AstNode* failsp = nodep->failsp(); if (failsp) failsp->unlinkFrBackWithNext();
-        //
-        if (VN_IS(nodep, VAssert)) {
-            if (passsp) passsp = newIfAssertOn(passsp);
-            if (failsp) failsp = newIfAssertOn(failsp);
-        } else {
-            nodep->v3fatalSrc("Unknown node type");
-        }
-
-        AstIf* ifp = new AstIf(nodep->fileline(), propp, passsp, failsp);
-        AstNode* newp = ifp;
-        if (VN_IS(nodep, VAssert)) ifp->branchPred(VBranchPred::BP_UNLIKELY);
-        //
-        // Install it
-        nodep->replaceWith(newp);
-        // Bye
-        pushDeletep(nodep); VL_DANGLING(nodep);
+        VL_DO_DANGLING(pushDeletep(nodep), nodep);
     }
 
     // VISITORS
-    virtual void visit(AstIf* nodep) {
+    virtual void visit(AstIf* nodep) VL_OVERRIDE {
         if (nodep->user1SetOnce()) return;
         if (nodep->uniquePragma() || nodep->unique0Pragma()) {
             AstNodeIf* ifp = nodep;
@@ -251,7 +234,7 @@ private:
     }
 
     //========== Case assertions
-    virtual void visit(AstCase* nodep) {
+    virtual void visit(AstCase* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         if (!nodep->user1SetOnce()) {
             bool has_default = false;
@@ -313,7 +296,7 @@ private:
     }
 
     //========== Past
-    virtual void visit(AstPast* nodep) {
+    virtual void visit(AstPast* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         uint32_t ticks = 1;
         if (nodep->ticksp()) {
@@ -343,9 +326,13 @@ private:
         }
         nodep->replaceWith(inp);
     }
+    virtual void visit(AstSampled* nodep) VL_OVERRIDE {
+        nodep->replaceWith(nodep->exprp()->unlinkFrBack());
+        VL_DO_DANGLING(pushDeletep(nodep), nodep);
+    }
 
     //========== Statements
-    virtual void visit(AstDisplay* nodep) {
+    virtual void visit(AstDisplay* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         // Replace the special types with standard text
         if (nodep->displayType()==AstDisplayType::DT_INFO) {
@@ -358,27 +345,32 @@ private:
         }
     }
 
-    virtual void visit(AstNodePslCoverOrAssert* nodep) {
+    virtual void visit(AstAssert* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        if (m_beginp && nodep->name() == "") nodep->name(m_beginp->name());
-        newPslAssertion(nodep, nodep->propp(), nodep->sentreep(),
-                        nodep->stmtsp(), nodep->name()); VL_DANGLING(nodep);
+        newPslAssertion(nodep, nodep->failsp());
     }
-    virtual void visit(AstVAssert* nodep) {
+    virtual void visit(AstCover* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        newVAssertion(nodep, nodep->propp()); VL_DANGLING(nodep);
-        ++m_statAsSV;
+        newPslAssertion(nodep, NULL);
+    }
+    virtual void visit(AstRestrict* nodep) VL_OVERRIDE {
+        iterateChildren(nodep);
+        // IEEE says simulator ignores these
+        VL_DO_DANGLING(pushDeletep(nodep->unlinkFrBack()), nodep);
     }
 
-    virtual void visit(AstNodeModule* nodep) {
-        m_modp = nodep;
-        m_modPastNum = 0;
-        //
-        iterateChildren(nodep);
-        // Reset defaults
-        m_modp = NULL;
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
+        AstNodeModule* origModp = m_modp;
+        unsigned origPastNum = m_modPastNum;
+        {
+            m_modp = nodep;
+            m_modPastNum = 0;
+            iterateChildren(nodep);
+        }
+        m_modp = origModp;
+        m_modPastNum = origPastNum;
     }
-    virtual void visit(AstBegin* nodep) {
+    virtual void visit(AstBegin* nodep) VL_OVERRIDE {
         // This code is needed rather than a visitor in V3Begin,
         // because V3Assert is called before V3Begin
         AstBegin* lastp = m_beginp;
@@ -389,7 +381,7 @@ private:
         m_beginp = lastp;
     }
 
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 public:
@@ -402,9 +394,9 @@ public:
         iterate(nodep);
     }
     virtual ~AssertVisitor() {
-        V3Stats::addStat("Assertions, PSL asserts", m_statAsPsl);
-        V3Stats::addStat("Assertions, SystemVerilog asserts", m_statAsSV);
-        V3Stats::addStat("Assertions, cover statements", m_statAsCover);
+        V3Stats::addStat("Assertions, assert non-immediate statements", m_statAsNotImm);
+        V3Stats::addStat("Assertions, assert immediate statements", m_statAsImm);
+        V3Stats::addStat("Assertions, cover statements", m_statCover);
         V3Stats::addStat("Assertions, full/parallel case", m_statAsFull);
     }
 };

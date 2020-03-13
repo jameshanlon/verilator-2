@@ -9,7 +9,7 @@ image::https://www.veripool.org/img/verilator_256_200_min.png[Logo,256,200,role=
 This file discusses internal and programming details for Verilator.  It's a
 reference for developers and debugging problems.
 
-See also the Verilator internals presentation at http://www.veripool.org.
+See also the Verilator internals presentation at https://www.veripool.org.
 
 == Code Flows
 
@@ -70,7 +70,10 @@ The AST is represented at the top level by the class `AstNode`. This
 abstract class has derived classes for the individual components
 (e.g. `AstGenerate` for a generate block) or groups of components
 (e.g. `AstNodeFTask` for functions and tasks, which in turn has `AstFunc`
-and `AstTask` as derived classes).
+and `AstTask` as derived classes). An important property of the `AstNode`
+type hierarchy is that all non-final subclasses of `AstNode` (i.e.: those
+which themselves have subclasses) must be abstract as well, and be named
+with the prefix `AstNode*`. The `astgen` (see below) script relies on this.
 
 Each `AstNode` has pointers to up to four children, accessed by the `op1p`
 through `op4p` methods.  These methods are then abstracted in a specific
@@ -103,7 +106,7 @@ the pass.
 A number of passes use graph algorithms, and the class `V3Graph` is
 provided to represent those graphs. Graphs are directed, and algorithms are
 provided to manipulate the graphs and to output them in
-http://www.graphviz.org/[GraphViz] dot format. `V3Graph.h` provides
+https://www.graphviz.org[GraphViz] dot format. `V3Graph.h` provides
 documentation of this class.
 
 ==== `V3GraphVertex`
@@ -382,12 +385,19 @@ changed; if clear, checking those signals for changes may be skipped.
 
 == Coding Conventions
 
+=== Compiler Version and C++11
+
+Verilator supports GCC 4.4.7 and newer.  GCC 4.4.7 does not support C++11,
+therefore C++11 is generally not required.  Exceptions may be made to
+require C++11 for features that are only practical with C++11,
+e.g. threads.
+
 === Indentation and Naming Style
 
 We will work with contributors to fix up indentation style issues, but it
 is appreciated if you could match our style:
 
-* All files should contain the magic header to insure standard indentation:
+* All files should contain the magic header to ensure standard indentation:
 +
    // -*- mode: C++; c-file-style: "cc-mode" -*-
 +
@@ -431,7 +441,7 @@ into `V3Const__gen.cpp`.
 Verilator uses the "Visitor" design pattern to implement its refinement and
 optimization passes. This allows separation of the pass algorithm from the
 AST on which it operates. Wikipedia provides an introduction to the concept
-at http://en.wikipedia.org/wiki/Visitor_pattern.
+at https://en.wikipedia.org/wiki/Visitor_pattern.
 
 As noted above, all visitors are derived classes of `AstNVisitor`. All
 derived classes of `AstNode` implement the `accept` method, which takes as
@@ -615,13 +625,17 @@ with e.g. "sudo cpan install Parallel::Forker".
 * vcddiff to find differences in VCD outputs. See the readme at
 https://github.com/veripool/vcddiff
 
+* Cmake for build paths that use it.
+
+* Bit::Vector to test vgen.pl
+
 === Controlling the Test Driver
 
 Test drivers are written in PERL. All invoke the main test driver script,
 which can provide detailed help on all the features available when writing
 a test driver.
 
-   test_regress/t/driver.pl --help
+   test_regress/driver.pl --help
 
 For convenience, a summary of the most commonly used features is provided
 here. All drivers require a call to `compile` subroutine to compile the
@@ -706,6 +720,13 @@ respectively 16,384 and 4,096. The method of doing this is system
 dependent, but on Fedora Linux it would require editing the
 `/etc/security/limits.conf` file as root.
 
+=== Manual Test Execution
+
+A specific regression test can be executed manually. To start the "EXAMPLE"
+test, run the following command.
+
+   test_regress/t/t_EXAMPLE.pl
+
 === Continuous Integration
 
 Verilator has a https://travis-ci.com/verilator/verilator[Travis CI environment]
@@ -744,7 +765,7 @@ into the obj_dir, .tree and .dot files.
 === .dot Output
 
 Dot files are dumps of internal graphs in
-http://www.graphviz.org/[Graphviz] dot format.  When a dot file is dumped,
+https://www.graphviz.org[Graphviz] dot format.  When a dot file is dumped,
 Verilator will also print a line on stdout that can be used to format the
 output, for example:
 
@@ -753,9 +774,9 @@ output, for example:
 You can then print a.ps.  You may prefer gif format, which doesn't get
 scaled so can be more useful with large graphs.
 
-For dynamic graph viewing consider ZGRViewer
-http://zvtm.sourceforge.net/zgrviewer.html.  If you know of better
-viewers let us know; ZGRViewer isn't great for large graphs.
+For dynamic graph viewing consider
+http://zvtm.sourceforge.net/zgrviewer.html[ZGRViewer].  If you know of
+better viewers let us know; ZGRViewer isn't great for large graphs.
 
 === .tree Output
 
@@ -916,6 +937,10 @@ what made a <e####> line in the tree dumps):
 
    watch AstNode::s_editCntGbl==####
 
+Then, when the watch fires, to break at every following change to that node:
+
+   watch m_editCount
+
 To print a node:
 
    pn nodep
@@ -948,7 +973,8 @@ src/VParseGrammar.y, as this grammar supports the full SystemVerilog
 language and has a lot of back-and-forth with Verilator's grammar.  Copy
 the appropriate rules to src/verilog.y and modify the productions.
 
-. If a new Ast type is needed, add it to V3AstNodes.h.
+. If a new Ast type is needed, add it to V3AstNodes.h. Follow the convention
+described above about the AstNode type hierarchy.
 
 . Now you can run "test_regress/t/t_{new testcase}.pl --debug" and it'll
 probably fail but you'll see a test_regress/obj_dir/t_{newtestcase}/*.tree
@@ -969,6 +995,6 @@ list in `src/Makefile_obj.in` and reconfigure.
 
 == Distribution
 
-Copyright 2008-2019 by Wilson Snyder.  Verilator is free software; you can
+Copyright 2008-2020 by Wilson Snyder.  Verilator is free software; you can
 redistribute it and/or modify it under the terms of either the GNU Lesser
 General Public License Version 3 or the Perl Artistic License Version 2.0.

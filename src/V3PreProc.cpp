@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilog::Preproc: Internal implementation of default preprocessor
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2000-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2000-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the
 // GNU Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -24,6 +24,7 @@
 #include "V3Error.h"
 #include "V3Global.h"
 #include "V3File.h"
+#include "V3LanguageWords.h"
 #include "V3PreLex.h"
 #include "V3PreProc.h"
 #include "V3PreShell.h"
@@ -118,6 +119,8 @@ public:
     V3PreProc* m_preprocp;  ///< Object we're holding data for
     V3PreLex* m_lexp;  ///< Current lexer state (NULL = closed)
     std::stack<V3PreLex*> m_includeStack;  ///< Stack of includers above current m_lexp
+    int m_lastLineno;  // Last line number (stall detection)
+    int m_tokensOnLine;  // Number of tokens on line (stall detection)
 
     enum ProcState { ps_TOP,
                      ps_DEFNAME_UNDEF, ps_DEFNAME_DEFINE,
@@ -132,7 +135,7 @@ public:
                "ps_DEFFORM", "ps_DEFVALUE", "ps_DEFPAREN", "ps_DEFARG",
                "ps_INCNAME", "ps_ERRORNAME", "ps_JOIN", "ps_STRIFY"};
         return states[s];
-    };
+    }
 
     std::stack<ProcState> m_states;  ///< Current state of parser
     int         m_off;          ///< If non-zero, ifdef level is turned off, don't dump text
@@ -266,6 +269,8 @@ public:
         m_finFilelinep = NULL;
         m_lexp = NULL;
         m_preprocp = NULL;
+        m_lastLineno = 0;
+        m_tokensOnLine = 0;
     }
     void configure(FileLine* filelinep) {
         // configure() separate from constructor to avoid calling abstract functions
@@ -280,7 +285,7 @@ public:
         m_lexp->debug(debug()>=5 ? debug() : 0);  // See also V3PreProc::debug() method
     }
     ~V3PreProcImp() {
-        if (m_lexp) { delete m_lexp; m_lexp = NULL; }
+        if (m_lexp) VL_DO_CLEAR(delete m_lexp, m_lexp = NULL);
     }
 };
 
@@ -333,22 +338,28 @@ FileLine* V3PreProcImp::defFileline(const string& name) {
 void V3PreProcImp::define(FileLine* fl, const string& name, const string& value,
                           const string& params, bool cmdline) {
     UINFO(4,"DEFINE '"<<name<<"' as '"<<value<<"' params '"<<params<<"'"<<endl);
-    if (defExists(name)) {
-        if (!(defValue(name)==value && defParams(name)==params)) {  // Duplicate defs are OK
-            fl->v3warn(REDEFMACRO, "Redefining existing define: '"<<name<<"', with different value: "
-                       <<value<<(params=="" ? "":" ")<<params);
-            defFileline(name)->v3warn(REDEFMACRO, "Previous definition is here, with value: "
-                                      <<defValue(name)
-                                      <<(defParams(name)=="" ? "":" ")
-                                      <<defParams(name));
+    if (!V3LanguageWords::isKeyword(string("`") + name).empty()) {
+        fl->v3error("Attempting to define built-in directive: '`"
+                    << name << "' (IEEE 1800-2017 22.5.1)");
+    } else {
+        if (defExists(name)) {
+            if (!(defValue(name) == value
+                  && defParams(name) == params)) {  // Duplicate defs are OK
+                fl->v3warn(REDEFMACRO, "Redefining existing define: '"<<name<<"', with different value: "
+                           <<value<<(params=="" ? "":" ")<<params);
+                defFileline(name)->v3warn(REDEFMACRO, "Previous definition is here, with value: "
+                                          << defValue(name)
+                                          << (defParams(name).empty() ? "" : " ")
+                                          << defParams(name));
+            }
+            undef(name);
         }
-        undef(name);
+        m_defines.insert(make_pair(name, VDefine(fl, value, params, cmdline)));
     }
-    m_defines.insert(make_pair(name, VDefine(fl, value, params, cmdline)));
 }
 
 string V3PreProcImp::removeDefines(const string& text) {
-    string val = "0_never_match";
+    string val;
     string rtnsym = text;
     for (int loopprevent=0; loopprevent<100; loopprevent++) {
         string xsym = rtnsym;
@@ -889,6 +900,15 @@ int V3PreProcImp::getRawToken() {
         int tok = m_lexp->lex();
         if (debug()>=5) debugToken(tok, "RAW");
 
+        if (m_lastLineno != m_lexp->m_tokFilelinep->lineno()) {
+            m_lastLineno = m_lexp->m_tokFilelinep->lineno();
+            m_tokensOnLine = 0;
+        } else if (++m_tokensOnLine > LINE_TOKEN_MAX) {
+            error("Too many preprocessor tokens on a line (>"+cvtToStr(LINE_TOKEN_MAX)
+                  +"); perhaps recursive `define");
+            tok = VP_EOF_ERROR;
+        }
+
         if (tok==VP_EOF || tok==VP_EOF_ERROR) {
             // An error might be in an unexpected point, so stop parsing
             if (tok==VP_EOF_ERROR) forceEof();
@@ -1156,7 +1176,7 @@ int V3PreProcImp::getStateToken() {
                     out = defineSubst(refp);
                     //NOP: out = m_preprocp->defSubstitute(out);
                 }
-                m_defRefs.pop(); VL_DANGLING(refp);
+                VL_DO_DANGLING(m_defRefs.pop(), refp);
                 if (m_defRefs.empty()) {
                     statePop();
                     if (state() == ps_JOIN) {  // Handle {left}```FOO(ARG) where `FOO(ARG) might be empty

@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: DAG Path Checking
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -42,8 +42,8 @@ class GraphPathChecker : GraphAlg<const V3Graph> {
 
  public:
     // CONSTRUCTORS
-    GraphPathChecker(const V3Graph* graphp,
-                     V3EdgeFuncP edgeFuncp = V3GraphEdge::followAlwaysTrue);
+    explicit GraphPathChecker(const V3Graph* graphp,
+                              V3EdgeFuncP edgeFuncp = V3GraphEdge::followAlwaysTrue);
     ~GraphPathChecker();
 
     // METHODS

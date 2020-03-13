@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Error handling
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -77,6 +77,7 @@ public:
         CONTASSREG,     // Continuous assignment on reg
         DEFPARAM,       // Style: Defparam
         DECLFILENAME,   // Declaration doesn't match filename
+        DEPRECATED,     // Feature will be deprecated
         ENDLABEL,       // End lable name mismatch
         GENCLK,         // Generated Clock
         IFDEPTH,        // If statements too deep
@@ -100,6 +101,8 @@ public:
         REALCVT,        // Real conversion
         REDEFMACRO,     // Redefining existing define macro
         SELRANGE,       // Selection index out of range
+        SHORTREAL,      // Shortreal not supported
+        SPLITVAR,       // Cannot split the variable
         STMTDLY,        // Delayed statement
         SYMRSVDWORD,    // Symbol is Reserved Word
         SYNCASYNCNET,   // Mixed sync + async reset
@@ -142,7 +145,7 @@ public:
             "BLKANDNBLK", "BLKLOOPINIT", "BLKSEQ", "BSSPACE",
             "CASEINCOMPLETE", "CASEOVERLAP", "CASEWITHX", "CASEX", "CDCRSTLOGIC", "CLKDATA",
             "CMPCONST", "COLONPLUS", "COMBDLY", "CONTASSREG",
-            "DEFPARAM", "DECLFILENAME",
+            "DEFPARAM", "DECLFILENAME", "DEPRECATED",
             "ENDLABEL", "GENCLK",
             "IFDEPTH", "IGNOREDRETURN",
             "IMPERFECTSCH", "IMPLICIT", "IMPORTSTAR", "IMPURE",
@@ -151,7 +154,7 @@ public:
             "MULTIDRIVEN", "MULTITOP",
             "PINMISSING", "PINNOCONNECT", "PINCONNECTEMPTY", "PROCASSWIRE",
             "REALCVT", "REDEFMACRO",
-            "SELRANGE", "STMTDLY", "SYMRSVDWORD", "SYNCASYNCNET",
+            "SELRANGE", "SHORTREAL", "SPLITVAR", "STMTDLY", "SYMRSVDWORD", "SYNCASYNCNET",
             "TICKCOUNT",
             "UNDRIVEN", "UNOPT", "UNOPTFLAT", "UNOPTTHREADS",
             "UNPACKED", "UNSIGNED", "UNUSED",
@@ -203,11 +206,15 @@ public:
                                        || m_e==UNDRIVEN
                                        || m_e==UNUSED
                                        || m_e==VARHIDDEN ); }
-  };
-  inline bool operator==(V3ErrorCode lhs, V3ErrorCode rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(V3ErrorCode lhs, V3ErrorCode::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(V3ErrorCode::en lhs, V3ErrorCode rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, V3ErrorCode rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const V3ErrorCode& lhs, const V3ErrorCode& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const V3ErrorCode& lhs, V3ErrorCode::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(V3ErrorCode::en lhs, const V3ErrorCode& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const V3ErrorCode& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -289,8 +296,8 @@ inline void v3errorEndFatal(std::ostringstream& sstr) {
 
 // Theses allow errors using << operators: v3error("foo"<<"bar");
 // Careful, you can't put () around msg, as you would in most macro definitions
-// Note the commas are the comma operator, not separating arguments. These are needed to insure
-// evaluation order as otherwise we couldn't insure v3errorPrep is called first.
+// Note the commas are the comma operator, not separating arguments. These are needed to ensure
+// evaluation order as otherwise we couldn't ensure v3errorPrep is called first.
 #define v3warnCode(code,msg) \
     v3errorEnd((V3Error::v3errorPrep(code), (V3Error::v3errorStr()<<msg), V3Error::v3errorStr()));
 #define v3warnCodeFatal(code,msg) \
@@ -307,8 +314,11 @@ inline void v3errorEndFatal(std::ostringstream& sstr) {
     ::v3errorEndFatal((V3Error::v3errorPrep(V3ErrorCode::EC_FATAL), \
                        (V3Error::v3errorStr()<<msg), V3Error::v3errorStr()));
 
-#define UINFO(level,stmsg) {if (VL_UNCOVERABLE(debug()>=(level))) { cout<<"- "<<V3Error::lineStr(__FILE__,__LINE__)<<stmsg; }}
-#define UINFONL(level,stmsg) {if (VL_UNCOVERABLE(debug()>=(level))) { cout<<stmsg; } }
+#define UINFO(level, stmsg) \
+    { if (VL_UNCOVERABLE(debug() >= (level))) { \
+            cout << "- " << V3Error::lineStr(__FILE__, __LINE__) << stmsg; } }
+#define UINFONL(level, stmsg) \
+    { if (VL_UNCOVERABLE(debug() >= (level))) { cout << stmsg; } }
 
 #ifdef VL_DEBUG
 # define UDEBUGONLY(stmts) {stmts}

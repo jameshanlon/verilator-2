@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Recreate loops to help pack caches
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -120,11 +120,11 @@ private:
                 // Replace constant index with new loop index
                 AstNode* lbitp = m_mgSelLp->bitp();
                 lbitp->replaceWith(new AstVarRef(fl, itp, false));
-                lbitp->deleteTree(); VL_DANGLING(lbitp);
+                VL_DO_DANGLING(lbitp->deleteTree(), lbitp);
                 if (m_mgSelRp) {  // else constant and no replace
                     AstNode* rbitp = m_mgSelRp->bitp();
                     rbitp->replaceWith(new AstVarRef(fl, itp, false));
-                    rbitp->deleteTree(); VL_DANGLING(lbitp);
+                    VL_DO_DANGLING(rbitp->deleteTree(), lbitp);
                 }
                 if (debug()>=9) initp->dumpTree(cout, "-new: ");
                 if (debug()>=9) whilep->dumpTree(cout, "-new: ");
@@ -133,7 +133,7 @@ private:
                 for (AssVec::iterator it=m_mgAssignps.begin(); it!=m_mgAssignps.end(); ++it) {
                     AstNodeAssign* assp = *it;
                     if (assp != bodyp) {
-                        assp->unlinkFrBack()->deleteTree(); VL_DANGLING(assp);
+                        VL_DO_DANGLING(assp->unlinkFrBack()->deleteTree(), assp);
                     }
                 }
             }
@@ -148,12 +148,12 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstCFunc* nodep) {
+    virtual void visit(AstCFunc* nodep) VL_OVERRIDE {
         m_cfuncp = nodep;
         iterateChildren(nodep);
         m_cfuncp = NULL;
     }
-    virtual void visit(AstNodeAssign* nodep) {
+    virtual void visit(AstNodeAssign* nodep) VL_OVERRIDE {
         if (!m_cfuncp) return;
 
         // Left select WordSel or ArraySel
@@ -162,6 +162,7 @@ private:
         // Of a constant index
         AstConst* lbitp = VN_CAST(lselp->bitp(), Const);
         if (!lbitp) { mergeEnd(); return; }
+        if (lbitp->width() > 32) { mergeEnd(); return; }  // Assoc arrays can do this
         uint32_t index = lbitp->toUInt();
         // Of variable
         AstNodeVarRef* lvarrefp = VN_CAST(lselp->fromp(), NodeVarRef);
@@ -226,9 +227,9 @@ private:
     }
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstVar* nodep) {}  // Speedup
-    virtual void visit(AstNodeMath* nodep) {}  // Speedup
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {}  // Speedup
+    virtual void visit(AstNodeMath* nodep) VL_OVERRIDE {}  // Speedup
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 

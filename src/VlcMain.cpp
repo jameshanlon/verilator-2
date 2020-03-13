@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: verilator_coverage: main()
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -42,9 +42,7 @@
 // VlcOptions
 
 void VlcOptions::addReadFile(const string& filename) {
-    if (m_readFiles.find(filename) == m_readFiles.end()) {
-        m_readFiles.insert(filename);
-    }
+    m_readFiles.insert(filename);
 }
 
 string VlcOptions::version() {
@@ -73,7 +71,7 @@ void VlcOptions::parseOptsList(int argc, char** argv) {
     for (int i=0; i<argc; )  {
         UINFO(9, " Option: "<<argv[i]<<endl);
         if (argv[i][0]=='-') {
-            const char *sw = argv[i];
+            const char* sw = argv[i];
             bool flag = true;
             // Allow gnu -- switches
             if (sw[0]=='-' && sw[1]=='-') ++sw;
@@ -133,13 +131,13 @@ void VlcOptions::showVersion(bool verbose) {
     if (!verbose) return;
 
     cout <<endl;
-    cout << "Copyright 2003-2019 by Wilson Snyder.  Verilator is free software; you can\n";
+    cout << "Copyright 2003-2020 by Wilson Snyder.  Verilator is free software; you can\n";
     cout << "redistribute it and/or modify the Verilator internals under the terms of\n";
     cout << "either the GNU Lesser General Public License Version 3 or the Perl Artistic\n";
     cout << "License Version 2.0.\n";
 
     cout <<endl;
-    cout << "See http://www.veripool.org/verilator for documentation\n";
+    cout << "See https://verilator.org for documentation\n";
 }
 
 //######################################################################

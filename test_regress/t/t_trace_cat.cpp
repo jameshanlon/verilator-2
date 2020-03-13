@@ -10,28 +10,23 @@
 
 #include VM_PREFIX_INCLUDE
 
-#define STRINGIFY(x) STRINGIFY2(x)
-#define STRINGIFY2(x) #x
-
 unsigned long long main_time = 0;
-double sc_time_stamp() {
-    return (double)main_time;
-}
+double sc_time_stamp() { return (double)main_time; }
 
 const char* trace_name() {
     static char name[1000];
-    VL_SNPRINTF(name, 1000, STRINGIFY(TEST_OBJ_DIR) "/simpart_%04d.vcd", (int)main_time);
+    VL_SNPRINTF(name, 1000, VL_STRINGIFY(TEST_OBJ_DIR) "/simpart_%04d.vcd", (int)main_time);
     return name;
 }
 
-int main(int argc, char **argv, char **env) {
+int main(int argc, char** argv, char** env) {
     VM_PREFIX* top = new VM_PREFIX("top");
 
     Verilated::debug(0);
     Verilated::traceEverOn(true);
 
     VerilatedVcdC* tfp = new VerilatedVcdC;
-    top->trace(tfp,99);
+    top->trace(tfp, 99);
 
     tfp->open(trace_name());
 
@@ -51,7 +46,7 @@ int main(int argc, char **argv, char **env) {
             tfp->close();
             delete tfp;
             tfp = new VerilatedVcdC;
-            top->trace(tfp,99);
+            top->trace(tfp, 99);
             tfp->open(trace_name());
 #else
 # error "Unknown test"

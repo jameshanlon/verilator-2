@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Common headers
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -55,25 +55,32 @@ public:
     inline VWidthMinUsage(en _e) : m_e(_e) {}
     explicit inline VWidthMinUsage(int _e) : m_e(static_cast<en>(_e)) {}
     operator en() const { return m_e; }
-  };
-  inline bool operator==(VWidthMinUsage lhs, VWidthMinUsage rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VWidthMinUsage lhs, VWidthMinUsage::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VWidthMinUsage::en lhs, VWidthMinUsage rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const VWidthMinUsage& lhs, const VWidthMinUsage& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VWidthMinUsage& lhs, VWidthMinUsage::en rhs) {
+    return lhs.m_e == rhs;
+}
+inline bool operator==(VWidthMinUsage::en lhs, const VWidthMinUsage& rhs) {
+    return lhs == rhs.m_e;
+}
 
 //######################################################################
 // V3Global - The top level class for the entire program
 
 class V3Global {
     // Globals
-    AstNetlist* m_rootp;                // Root of entire netlist
-    VWidthMinUsage m_widthMinUsage;     // What AstNode::widthMin() is used for
+    AstNetlist* m_rootp;  // Root of entire netlist
+    VWidthMinUsage m_widthMinUsage;  // What AstNode::widthMin() is used for
 
-    int         m_debugFileNumber;      // Number to append to debug files created
-    bool        m_assertDTypesResolved; // Tree should have dtypep()'s
-    bool        m_constRemoveXs;        // Const needs to strip any Xs
-    bool        m_needHInlines;         // Need __Inlines file
-    bool        m_needHeavy;            // Need verilated_heavy.h include
-    bool        m_dpi;                  // Need __Dpi include files
+    int m_debugFileNumber;  // Number to append to debug files created
+    bool m_assertDTypesResolved;  // Tree should have dtypep()'s
+    bool m_constRemoveXs;  // Const needs to strip any Xs
+    bool m_needTraceDumper;  // Need __Vm_dumperp in symbols
+    bool m_needHInlines;  // Need __Inlines file
+    bool m_needHeavy;  // Need verilated_heavy.h include
+    bool m_dpi;  // Need __Dpi include files
 
 public:
     // Options
@@ -86,6 +93,7 @@ public:
         m_widthMinUsage = VWidthMinUsage::LINT_WIDTH;
         m_assertDTypesResolved = false;
         m_constRemoveXs = false;
+        m_needTraceDumper = false;
         m_needHInlines = false;
         m_needHeavy = false;
         m_dpi = false;
@@ -113,10 +121,12 @@ public:
         char digits[100]; sprintf(digits, "%03d", m_debugFileNumber);
         return opt.makeDir()+"/"+opt.prefix()+"_"+digits+"_"+nameComment;
     }
+    bool needTraceDumper() const { return m_needTraceDumper; }
+    void needTraceDumper(bool flag) { m_needTraceDumper = flag; }
     bool needHInlines() const { return m_needHInlines; }
-    void needHInlines(bool flag) { m_needHInlines=flag; }
+    void needHInlines(bool flag) { m_needHInlines = flag; }
     bool needHeavy() const { return m_needHeavy; }
-    void needHeavy(bool flag) { m_needHeavy=flag; }
+    void needHeavy(bool flag) { m_needHeavy = flag; }
     bool dpi() const { return m_dpi; }
     void dpi(bool flag) { m_dpi = flag; }
 };

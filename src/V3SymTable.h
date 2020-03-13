@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Symbol table
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -163,9 +163,9 @@ public:
         // Suggest alternative symbol candidates without looking upward through symbol hierarchy
         for (IdNameMap::const_iterator it = m_idNameMap.begin();
              it != m_idNameMap.end(); ++it) {
-            const AstNode* nodep = it->second->nodep();
-            if (nodep && (!matcherp || matcherp->nodeMatch(nodep))) {
-                spellerp->pushCandidate(nodep->prettyName());
+            const AstNode* itemp = it->second->nodep();
+            if (itemp && (!matcherp || matcherp->nodeMatch(itemp))) {
+                spellerp->pushCandidate(itemp->prettyName());
             }
         }
     }
@@ -249,9 +249,9 @@ public:
         if (prettyName=="") prettyName = lookp->prettyName();
         string scopes;
         for (IdNameMap::iterator it = m_idNameMap.begin(); it!=m_idNameMap.end(); ++it) {
-            AstNode* nodep = it->second->nodep();
-            if (VN_IS(nodep, Cell)
-                || (VN_IS(nodep, Module) && VN_CAST(nodep, Module)->isTop())) {
+            AstNode* itemp = it->second->nodep();
+            if (VN_IS(itemp, Cell)
+                || (VN_IS(itemp, Module) && VN_CAST(itemp, Module)->isTop())) {
                 if (scopes != "") scopes += ", ";
                 scopes += AstNode::prettyName(it->first);
             }

@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: File stream wrapper that understands indentation
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -49,7 +49,7 @@ public:
         return new_ofstream_nodepend(filename, append);
     }
     static std::ofstream* new_ofstream_nodepend(const string& filename, bool append=false) {
-        if (filename != VL_DEV_NULL) createMakeDir();
+        createMakeDirFor(filename);
         if (append) {
             return new std::ofstream(filename.c_str(), std::ios::app);
         } else {
@@ -57,7 +57,7 @@ public:
         }
     }
     static FILE* new_fopen_w(const string& filename) {
-        if (filename != VL_DEV_NULL) createMakeDir();
+        createMakeDirFor(filename);
         addTgtDepend(filename);
         return fopen(filename.c_str(), "w");
     }
@@ -71,6 +71,7 @@ public:
     static bool checkTimes(const string& filename, const string& cmdlineIn);
 
     // Directory utilities
+    static void createMakeDirFor(const string& filename);
     static void createMakeDir();
 };
 
@@ -137,6 +138,7 @@ public:
     V3OutFormatter(const string& filename, Language lang);
     virtual ~V3OutFormatter() {}
     // ACCESSORS
+    string filename() const { return m_filename; }
     int column() const { return m_column; }
     int blockIndent() const { return m_blockIndent; }
     void blockIndent(int flag) { m_blockIndent = flag; }
@@ -185,23 +187,28 @@ private:
 };
 
 class V3OutCFile : public V3OutFile {
-    int         m_private;
+    int m_guard;  // Created header guard
+    int m_private;  // 1 = Most recently emitted private:, 2 = public:
 public:
-    explicit V3OutCFile(const string& filename) : V3OutFile(filename, V3OutFormatter::LA_C) {
+    explicit V3OutCFile(const string& filename)
+        : V3OutFile(filename, V3OutFormatter::LA_C)
+        , m_guard(false) {
         resetPrivate();
     }
     virtual ~V3OutCFile() {}
     virtual void putsHeader() { puts("// Verilated -*- C++ -*-\n"); }
-    virtual void putsIntTopInclude() {
-        putsForceIncs();
+    virtual void putsIntTopInclude() { putsForceIncs(); }
+    virtual void putsGuard();
+    virtual void putsEndGuard() {
+        if (m_guard) puts("\n#endif  // guard\n");
     }
     // Print out public/privates
     void resetPrivate() { m_private = 0; }
     void putsPrivate(bool setPrivate) {
-        if (setPrivate && m_private!=1) {
+        if (setPrivate && m_private != 1) {
             puts("private:\n");
             m_private = 1;
-        } else if (!setPrivate && m_private!=2) {
+        } else if (!setPrivate && m_private != 2) {
             puts("public:\n");
             m_private = 2;
         }

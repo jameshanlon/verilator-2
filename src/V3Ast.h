@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Ast node structure
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -51,15 +51,24 @@ typedef std::set<int> MTaskIdSet;  // Set of mtaskIds for Var sorting
 //######################################################################
 
 // For broken() function, return error string if have a match
-#define BROKEN_RTN(test) do { if (VL_UNCOVERABLE(test)) return # test; } while(0)
+#define BROKEN_RTN(test) \
+    do { \
+        if (VL_UNCOVERABLE(test)) return #test; \
+    } while (0)
+// For broken() function, return error string if a base of this class has a match
+#define BROKEN_BASE_RTN(test) \
+    do { \
+        const char* reasonp = (test); \
+        if (VL_UNCOVERABLE(reasonp)) return reasonp; \
+    } while (0)
 
 // (V)erilator (N)ode is: True if AstNode is of a a given AstType
-#define VN_IS(nodep,nodetypename) (AstNode::privateIs ## nodetypename(nodep))
+#define VN_IS(nodep,nodetypename) (AstNode::privateIs<Ast ## nodetypename>(nodep))
 
 // (V)erilator (N)ode cast: Cast to given type if can; effectively
 // dynamic_cast<nodetypename>(nodep)
-#define VN_CAST(nodep,nodetypename) (AstNode::privateCast ## nodetypename(nodep))
-#define VN_CAST_CONST(nodep,nodetypename) (AstNode::privateConstCast ## nodetypename(nodep) )
+#define VN_CAST(nodep,nodetypename) (AstNode::privateCast<Ast ## nodetypename>(nodep))
+#define VN_CAST_CONST(nodep,nodetypename) (AstNode::privateConstCast<Ast ## nodetypename>(nodep))
 
 // (V)erilator (N)ode deleted: Reference to deleted child (for assertions only)
 #define VN_DELETED(nodep) VL_UNLIKELY((vluint64_t)(nodep) == 0x1)
@@ -79,11 +88,11 @@ public:
     inline AstType(en _e) : m_e(_e) {}
     explicit inline AstType(int _e) : m_e(static_cast<en>(_e)) {}
     operator en() const { return m_e; }
-  };
-  inline bool operator==(AstType lhs, AstType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstType lhs, AstType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstType::en lhs, AstType rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const AstType& rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const AstType& lhs, const AstType& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const AstType& lhs, AstType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(AstType::en lhs, const AstType& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const AstType& rhs) { return os << rhs.ascii(); }
 
 //######################################################################
 
@@ -108,7 +117,7 @@ public:
             "UNSIGNED", "SIGNED", "NOSIGN"
         };
         return names[m_e];
-    };
+    }
     inline AstNumeric() : m_e(UNSIGNED) {}
     // cppcheck-suppress noExplicitConstructor
     inline AstNumeric(en _e) : m_e(_e) {}
@@ -125,11 +134,13 @@ public:
     inline bool isSigned() const { return m_e==SIGNED; }
     inline bool isNosign() const { return m_e==NOSIGN; }
     // No isUnsigned() as it's ambiguous if NOSIGN should be included or not.
-  };
-  inline bool operator==(AstNumeric lhs, AstNumeric rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstNumeric lhs, AstNumeric::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstNumeric::en lhs, AstNumeric rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const AstNumeric& rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const AstNumeric& lhs, const AstNumeric& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const AstNumeric& lhs, AstNumeric::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(AstNumeric::en lhs, const AstNumeric& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const AstNumeric& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -142,7 +153,10 @@ public:
         NO_INLINE_MODULE,
         NO_INLINE_TASK,
         PUBLIC_MODULE,
-        PUBLIC_TASK
+        PUBLIC_TASK,
+        FULL_CASE,
+        PARALLEL_CASE,
+        ENUM_SIZE
     };
     enum en m_e;
     inline AstPragmaType() : m_e(ILLEGAL) {}
@@ -150,10 +164,12 @@ public:
     inline AstPragmaType(en _e) : m_e(_e) {}
     explicit inline AstPragmaType(int _e) : m_e(static_cast<en>(_e)) {}
     operator en() const { return m_e; }
-  };
-  inline bool operator==(AstPragmaType lhs, AstPragmaType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstPragmaType lhs, AstPragmaType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstPragmaType::en lhs, AstPragmaType rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const AstPragmaType& lhs, const AstPragmaType& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const AstPragmaType& lhs, AstPragmaType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(AstPragmaType::en lhs, const AstPragmaType& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -178,10 +194,12 @@ public:
     bool isTrace() const { return (m_e==TRACE_INIT || m_e==TRACE_INIT_SUB
                                    || m_e==TRACE_FULL || m_e==TRACE_FULL_SUB
                                    || m_e==TRACE_CHANGE || m_e==TRACE_CHANGE_SUB); }
-  };
-  inline bool operator==(AstCFuncType lhs, AstCFuncType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstCFuncType lhs, AstCFuncType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstCFuncType::en lhs, AstCFuncType rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const AstCFuncType& lhs, const AstCFuncType& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const AstCFuncType& lhs, AstCFuncType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(AstCFuncType::en lhs, const AstCFuncType& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -267,10 +285,10 @@ public:
     inline VEdgeType(en _e) : m_e(_e) {}
     explicit inline VEdgeType(int _e) : m_e(static_cast<en>(_e)) {}
     operator en() const { return m_e; }
-  };
-  inline bool operator==(VEdgeType lhs, VEdgeType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VEdgeType lhs, VEdgeType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VEdgeType::en lhs, VEdgeType rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const VEdgeType& lhs, const VEdgeType& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const VEdgeType& lhs, VEdgeType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VEdgeType::en lhs, const VEdgeType& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -301,6 +319,8 @@ public:
         //
         MEMBER_BASE,                    // V3LinkResolve creates for AstPreSel, V3LinkParam removes
         //
+        TYPENAME,                       // V3Width processes
+        //
         VAR_BASE,                       // V3LinkResolve creates for AstPreSel, V3LinkParam removes
         VAR_CLOCK,                      // V3LinkParse moves to AstVar::attrScClocked
         VAR_CLOCK_ENABLE,               // V3LinkParse moves to AstVar::attrClockEn
@@ -312,7 +332,8 @@ public:
         VAR_SC_BV,                      // V3LinkParse moves to AstVar::attrScBv
         VAR_SFORMAT,                    // V3LinkParse moves to AstVar::attrSFormat
         VAR_CLOCKER,                    // V3LinkParse moves to AstVar::attrClocker
-        VAR_NO_CLOCKER                  // V3LinkParse moves to AstVar::attrClocker
+        VAR_NO_CLOCKER,                 // V3LinkParse moves to AstVar::attrClocker
+        VAR_SPLIT_VAR                   // V3LinkParse moves to AstVar::attrSplitVar
     };
     enum en m_e;
     const char* ascii() const {
@@ -324,22 +345,25 @@ public:
             "ENUM_BASE", "ENUM_FIRST", "ENUM_LAST", "ENUM_NUM",
             "ENUM_NEXT", "ENUM_PREV", "ENUM_NAME",
             "MEMBER_BASE",
+            "TYPENAME",
             "VAR_BASE", "VAR_CLOCK", "VAR_CLOCK_ENABLE", "VAR_PUBLIC",
             "VAR_PUBLIC_FLAT", "VAR_PUBLIC_FLAT_RD", "VAR_PUBLIC_FLAT_RW",
             "VAR_ISOLATE_ASSIGNMENTS", "VAR_SC_BV", "VAR_SFORMAT", "VAR_CLOCKER",
-            "VAR_NO_CLOCKER"
+            "VAR_NO_CLOCKER", "VAR_SPLIT_VAR"
         };
         return names[m_e];
-    };
+    }
     inline AstAttrType() : m_e(ILLEGAL) {}
     // cppcheck-suppress noExplicitConstructor
     inline AstAttrType(en _e) : m_e(_e) {}
     explicit inline AstAttrType(int _e) : m_e(static_cast<en>(_e)) {}
     operator en() const { return m_e; }
-  };
-  inline bool operator==(AstAttrType lhs, AstAttrType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstAttrType lhs, AstAttrType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstAttrType::en lhs, AstAttrType rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const AstAttrType& lhs, const AstAttrType& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const AstAttrType& lhs, AstAttrType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(AstAttrType::en lhs, const AstAttrType& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -373,7 +397,7 @@ public:
             " MAX"
         };
         return names[m_e];
-    };
+    }
     const char* dpiType() const {
         static const char* const names[] = {
             "%E-unk",
@@ -386,7 +410,7 @@ public:
             " MAX"
         };
         return names[m_e];
-    };
+    }
     static void selfTest() {
         UASSERT(0==strcmp(AstBasicDTypeKwd(_ENUM_MAX).ascii(), " MAX"), "SelfTest: Enum mismatch");
         UASSERT(0==strcmp(AstBasicDTypeKwd(_ENUM_MAX).dpiType(), " MAX"), "SelfTest: Enum mismatch");
@@ -463,10 +487,16 @@ public:
     }
     bool isDouble() const { return m_e==DOUBLE; }
     bool isString() const { return m_e==STRING; }
-  };
-  inline bool operator==(AstBasicDTypeKwd lhs, AstBasicDTypeKwd rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstBasicDTypeKwd lhs, AstBasicDTypeKwd::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstBasicDTypeKwd::en lhs, AstBasicDTypeKwd rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const AstBasicDTypeKwd& lhs, const AstBasicDTypeKwd& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const AstBasicDTypeKwd& lhs, AstBasicDTypeKwd::en rhs) {
+    return lhs.m_e == rhs;
+}
+inline bool operator==(AstBasicDTypeKwd::en lhs, const AstBasicDTypeKwd& rhs) {
+    return lhs == rhs.m_e;
+}
 
 //######################################################################
 
@@ -508,11 +538,13 @@ public:
     bool isWritable() const { return m_e == OUTPUT || m_e == INOUT
             || m_e == REF; }
     bool isRefOrConstRef() const { return m_e == REF || m_e == CONSTREF; }
-  };
-  inline bool operator==(VDirection lhs, VDirection rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VDirection lhs, VDirection::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VDirection::en lhs, VDirection rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const VDirection& rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const VDirection& lhs, const VDirection& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const VDirection& lhs, VDirection::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VDirection::en lhs, const VDirection& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const VDirection& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -535,14 +567,25 @@ public:
         static const char* const names[] = {
             "FALSE", "TRUE", "UNK"};
         return names[m_e]; }
-    bool trueU() const { return m_e == BU_TRUE || m_e == BU_UNKNOWN; }
-    bool falseU() const { return m_e == BU_FALSE || m_e == BU_UNKNOWN; }
+    bool trueKnown() const { return m_e == BU_TRUE; }
+    bool trueUnknown() const { return m_e == BU_TRUE || m_e == BU_UNKNOWN; }
+    bool falseKnown() const { return m_e == BU_FALSE; }
+    bool falseUnknown() const { return m_e == BU_FALSE || m_e == BU_UNKNOWN; }
     bool unknown() const { return m_e == BU_UNKNOWN; }
-  };
-  inline bool operator==(VBoolOrUnknown lhs, VBoolOrUnknown rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VBoolOrUnknown lhs, VBoolOrUnknown::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VBoolOrUnknown::en lhs, VBoolOrUnknown rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const VBoolOrUnknown& rhs) { return os<<rhs.ascii(); }
+    void setTrueOrFalse(bool flag) { m_e = flag ? BU_TRUE : BU_FALSE; }
+};
+inline bool operator==(const VBoolOrUnknown& lhs, const VBoolOrUnknown& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VBoolOrUnknown& lhs, VBoolOrUnknown::en rhs) {
+    return lhs.m_e == rhs;
+}
+inline bool operator==(VBoolOrUnknown::en lhs, const VBoolOrUnknown& rhs) {
+    return lhs == rhs.m_e;
+}
+inline std::ostream& operator<<(std::ostream& os, const VBoolOrUnknown& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -601,15 +644,19 @@ public:
     bool isProcAssignable() const {
         return (m_e==GPARAM || m_e==LPARAM || m_e==GENVAR
                 || m_e==VAR
-                || m_e==TRIWIRE || m_e==TRI0 || m_e==TRI1 || m_e==PORT
                 || m_e==BLOCKTEMP || m_e==MODULETEMP || m_e==STMTTEMP
                 || m_e==XTEMP || m_e==IFACEREF);
     }
-  };
-  inline bool operator==(AstVarType lhs, AstVarType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstVarType lhs, AstVarType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstVarType::en lhs, AstVarType rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const AstVarType& rhs) { return os<<rhs.ascii(); }
+    bool isTemp() const {
+        return (m_e==BLOCKTEMP || m_e==MODULETEMP || m_e==STMTTEMP || m_e==XTEMP);
+    }
+};
+inline bool operator==(const AstVarType& lhs, const AstVarType& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const AstVarType& lhs, AstVarType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(AstVarType::en lhs, const AstVarType& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const AstVarType& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -640,11 +687,15 @@ public:
         static const char* const names[] = {
             "", "VL_LIKELY", "VL_UNLIKELY"};
         return names[m_e]; }
-  };
-  inline bool operator==(VBranchPred lhs, VBranchPred rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VBranchPred lhs, VBranchPred::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VBranchPred::en lhs, VBranchPred rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const VBranchPred& rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const VBranchPred& lhs, const VBranchPred& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VBranchPred& lhs, VBranchPred::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VBranchPred::en lhs, const VBranchPred& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const VBranchPred& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -673,11 +724,19 @@ public:
         static const char* const names[] = {
             "", "clker", "non_clker"};
         return names[m_e]; }
-  };
-  inline bool operator==(VVarAttrClocker lhs, VVarAttrClocker rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VVarAttrClocker lhs, VVarAttrClocker::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VVarAttrClocker::en lhs, VVarAttrClocker rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const VVarAttrClocker& rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const VVarAttrClocker& lhs, const VVarAttrClocker& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VVarAttrClocker& lhs, VVarAttrClocker::en rhs) {
+    return lhs.m_e == rhs;
+}
+inline bool operator==(VVarAttrClocker::en lhs, const VVarAttrClocker& rhs) {
+    return lhs == rhs.m_e;
+}
+inline std::ostream& operator<<(std::ostream& os, const VVarAttrClocker& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -699,10 +758,10 @@ public:
         static const char* const names[] = {
             "always", "always_ff", "always_latch", "always_comb"};
         return names[m_e]; }
-  };
-  inline bool operator==(VAlwaysKwd lhs, VAlwaysKwd rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VAlwaysKwd lhs, VAlwaysKwd::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VAlwaysKwd::en lhs, VAlwaysKwd rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const VAlwaysKwd& lhs, const VAlwaysKwd& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const VAlwaysKwd& lhs, VAlwaysKwd::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VAlwaysKwd::en lhs, const VAlwaysKwd& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -720,10 +779,10 @@ public:
     inline VCaseType(en _e) : m_e(_e) {}
     explicit inline VCaseType(int _e) : m_e(static_cast<en>(_e)) {}
     operator en() const { return m_e; }
-  };
-  inline bool operator==(VCaseType lhs, VCaseType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VCaseType lhs, VCaseType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VCaseType::en lhs, VCaseType rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const VCaseType& lhs, const VCaseType& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const VCaseType& lhs, VCaseType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VCaseType::en lhs, const VCaseType& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -749,10 +808,42 @@ public:
         static const char* const names[] = {
             "display", "write", "info", "error", "warning", "fatal"};
         return names[m_e]; }
-  };
-  inline bool operator==(AstDisplayType lhs, AstDisplayType rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(AstDisplayType lhs, AstDisplayType::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(AstDisplayType::en lhs, AstDisplayType rhs) { return (lhs == rhs.m_e); }
+};
+inline bool operator==(const AstDisplayType& lhs, const AstDisplayType& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const AstDisplayType& lhs, AstDisplayType::en rhs) {
+    return lhs.m_e == rhs;
+}
+inline bool operator==(AstDisplayType::en lhs, const AstDisplayType& rhs) {
+    return lhs == rhs.m_e;
+}
+
+//######################################################################
+
+class VDumpCtlType {
+public:
+    enum en { FILE, VARS, ALL, FLUSH, LIMIT, OFF, ON };
+    enum en m_e;
+    inline VDumpCtlType()
+        : m_e(ON) {}
+    // cppcheck-suppress noExplicitConstructor
+    inline VDumpCtlType(en _e)
+        : m_e(_e) {}
+    explicit inline VDumpCtlType(int _e)
+        : m_e(static_cast<en>(_e)) {}
+    operator en() const { return m_e; }
+    const char* ascii() const {
+        static const char* const names[] = {"$dumpfile", "$dumpvars", "$dumpall", "$dumpflush",
+                                            "$dumplimit", "$dumpoff", "$dumpon"};
+        return names[m_e];
+    }
+};
+inline bool operator==(const VDumpCtlType& lhs, const VDumpCtlType& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VDumpCtlType& lhs, VDumpCtlType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VDumpCtlType::en lhs, const VDumpCtlType& rhs) { return lhs == rhs.m_e; }
 
 //######################################################################
 
@@ -772,11 +863,15 @@ public:
         static const char* const names[] = {
             "", "TEXT", "PREDOT"};
         return names[m_e]; }
-  };
-  inline bool operator==(VParseRefExp lhs, VParseRefExp rhs) { return (lhs.m_e == rhs.m_e); }
-  inline bool operator==(VParseRefExp lhs, VParseRefExp::en rhs) { return (lhs.m_e == rhs); }
-  inline bool operator==(VParseRefExp::en lhs, VParseRefExp rhs) { return (lhs == rhs.m_e); }
-  inline std::ostream& operator<<(std::ostream& os, const VParseRefExp& rhs) { return os<<rhs.ascii(); }
+};
+inline bool operator==(const VParseRefExp& lhs, const VParseRefExp& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VParseRefExp& lhs, VParseRefExp::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VParseRefExp::en lhs, const VParseRefExp& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const VParseRefExp& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 // VNumRange - Structure containing numeric range information
@@ -835,6 +930,36 @@ public:
         if (ranged()) str<<"["<<left()<<":"<<right()<<"]"; else str<<"[norg]"; }
 };
 inline std::ostream& operator<<(std::ostream& os, const VNumRange& rhs) { rhs.dump(os); return os; }
+
+//######################################################################
+
+class VUseType {
+public:
+    enum en {
+        IMP_INCLUDE,  // Implementation (.cpp) needs an include
+        INT_INCLUDE,  // Interface (.h) needs an include
+        IMP_FWD_CLASS,  // Implementation (.cpp) needs a forward class declaration
+        INT_FWD_CLASS,  // Interface (.h) needs a forward class declaration
+    };
+    enum en m_e;
+    inline VUseType() : m_e(IMP_FWD_CLASS) {}
+    // cppcheck-suppress noExplicitConstructor
+    inline VUseType(en _e) : m_e(_e) {}
+    explicit inline VUseType(int _e) : m_e(static_cast<en>(_e)) {}
+    bool isInclude() const { return m_e == IMP_INCLUDE || m_e == INT_INCLUDE; }
+    bool isFwdClass() const { return m_e == IMP_FWD_CLASS || m_e == INT_FWD_CLASS; }
+    operator en() const { return m_e; }
+    const char* ascii() const {
+        static const char* const names[] = {"IMP_INC", "INT_INC", "IMP_FWD", "INT_FWD"};
+        return names[m_e];
+    }
+};
+inline bool operator==(const VUseType& lhs, const VUseType& rhs) { return lhs.m_e == rhs.m_e; }
+inline bool operator==(const VUseType& lhs, VUseType::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VUseType::en lhs, const VUseType& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const VUseType& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -932,14 +1057,14 @@ protected:
         clearcnt(id, cntGblRef, userBusyRef);  // Includes a checkUse for us
         userBusyRef = false;
     }
-    static void clearcnt(int id, uint32_t& cntGblRef, bool& userBusyRef) {
+    static void clearcnt(int id, uint32_t& cntGblRef, const bool& userBusyRef) {
         UASSERT_STATIC(userBusyRef, "Clear of User"+cvtToStr(id)+"() not under AstUserInUse");
         // If this really fires and is real (after 2^32 edits???)
         // we could just walk the tree and clear manually
         ++cntGblRef;
         UASSERT_STATIC(cntGblRef, "User*() overflowed!");
     }
-    static void checkcnt(int id, uint32_t&, bool& userBusyRef) {
+    static void checkcnt(int id, uint32_t&, const bool& userBusyRef) {
         UASSERT_STATIC(userBusyRef, "Check of User"+cvtToStr(id)+"() failed, not under AstUserInUse");
     }
 };
@@ -1104,7 +1229,7 @@ public:
     explicit V3Hash(VNUser u) { m_both = u.toInt(); }
     V3Hash operator+= (const V3Hash& rh) {
         setBoth(depth()+rh.depth(), (hshval()*31+rh.hshval()));
-        return *this; };
+        return *this; }
     // Creating from raw data (sameHash functions)
     V3Hash() { setBoth(1, 0); }
     // cppcheck-suppress noExplicitConstructor
@@ -1150,6 +1275,8 @@ class AstNode {
     // ^ ASTNODE_PREFETCH depends on above ordering of members
 
     AstNode*    m_headtailp;    // When at begin/end of list, the opposite end of the list
+
+    const AstType m_type;       // Node sub-type identifier
 
     FileLine*   m_fileline;     // Where it was declared
     vluint64_t  m_editCount;    // When it was last edited
@@ -1205,11 +1332,13 @@ public:
 
 protected:
     // CONSTRUCTORS
-    AstNode() {init(); }
-    explicit AstNode(FileLine* fileline) {init(); m_fileline = fileline; }
+    AstNode(AstType t)
+        : m_type(t) { init(); }
+    AstNode(AstType t, FileLine* fl)
+        : m_type(t) { init(); m_fileline = fl; }
     virtual AstNode* clone() = 0;  // Generally, cloneTree is what you want instead
     virtual void cloneRelink() {}
-    void        cloneRelinkTree();
+    void cloneRelinkTree();
 
     // METHODS
     void setOp1p(AstNode* newp);  // Set non-list-type op1 to non-list element
@@ -1237,10 +1366,11 @@ protected:
 
 public:
     // ACCESSORS
-    virtual AstType type() const = 0;
+    inline AstType type() const { return m_type; }
     const char* typeName() const { return type().ascii(); }  // See also prettyTypeName
     AstNode* nextp() const { return m_nextp; }
     AstNode* backp() const { return m_backp; }
+    AstNode* abovep() const;  // Parent node above, only when no nextp() as otherwise slow
     AstNode* op1p() const { return m_op1p; }
     AstNode* op2p() const { return m_op2p; }
     AstNode* op3p() const { return m_op3p; }
@@ -1275,11 +1405,13 @@ public:
 
     // ACCESSORS
     virtual string name() const { return ""; }
+    virtual string origName() const { return ""; }
     virtual void name(const string& name) { this->v3fatalSrc("name() called on object without name() method"); }
     virtual void tag(const string& text) {}
     virtual string tag() const { return ""; }
     virtual string verilogKwd() const { return ""; }
     string nameProtect() const;  // Name with --protect-id applied
+    string origNameProtect() const;  // origName with --protect-id applied
     string shortName() const;  // Name with __PVT__ removed for concatenating scopes
     static string dedotName(const string& namein);  // Name with dots removed
     static string prettyName(const string& namein);  // Name for printing out to the user
@@ -1290,7 +1422,7 @@ public:
     static string vcdName(const string& namein);  // Name for printing out to vcd files
     string prettyName() const { return prettyName(name()); }
     string prettyNameQ() const { return prettyNameQ(name()); }
-    string prettyTypeName() const;  // "VARREF" for error messages
+    string prettyTypeName() const;  // "VARREF" for error messages (NOT dtype's pretty name)
     virtual string prettyOperatorName() const { return "operator "+prettyTypeName(); }
     FileLine* fileline() const { return m_fileline; }
     void fileline(FileLine* fl) { m_fileline = fl; }
@@ -1309,8 +1441,8 @@ public:
     int widthMin() const;
     int widthMinV() const { return v3Global.widthMinUsage()==VWidthMinUsage::VERILOG_WIDTH ? widthMin() : width(); }
     int widthWords() const { return VL_WORDS_I(width()); }
-    bool isQuad() const { return (width()>VL_WORDSIZE && width()<=VL_QUADSIZE); }
-    bool isWide() const { return (width()>VL_QUADSIZE); }
+    bool isQuad() const { return (width() > VL_IDATASIZE && width() <= VL_QUADSIZE); }
+    bool isWide() const { return (width() > VL_QUADSIZE); }
     bool isDouble() const;
     bool isSigned() const;
     bool isString() const;
@@ -1407,6 +1539,8 @@ public:
     void dtypeChgWidthSigned(int width, int widthMin, AstNumeric numeric);
     void dtypeSetBitUnsized(int width, int widthMin, AstNumeric numeric) {
         dtypep(findBitDType(width, widthMin, numeric)); }
+    void dtypeSetBitSized(int width, AstNumeric numeric) {
+        dtypep(findBitDType(width, width, numeric)); }  // Since sized, widthMin is width
     void dtypeSetLogicUnsized(int width, int widthMin, AstNumeric numeric) {
         dtypep(findLogicDType(width, widthMin, numeric)); }
     void dtypeSetLogicSized(int width, AstNumeric numeric) {
@@ -1417,6 +1551,7 @@ public:
     void dtypeSetSigned32()      { dtypep(findSigned32DType()); }
     void dtypeSetUInt32()        { dtypep(findUInt32DType()); }  // Twostate
     void dtypeSetUInt64()        { dtypep(findUInt64DType()); }  // Twostate
+    void dtypeSetVoid() { dtypep(findVoidDType()); }
 
     // Data type locators
     AstNodeDType* findLogicBoolDType()  { return findBasicDType(AstBasicDTypeKwd::LOGIC); }
@@ -1425,6 +1560,7 @@ public:
     AstNodeDType* findSigned32DType()   { return findBasicDType(AstBasicDTypeKwd::INTEGER); }
     AstNodeDType* findUInt32DType()     { return findBasicDType(AstBasicDTypeKwd::UINT32); }  // Twostate
     AstNodeDType* findUInt64DType()     { return findBasicDType(AstBasicDTypeKwd::UINT64); }  // Twostate
+    AstNodeDType* findVoidDType() const;
     AstNodeDType* findBitDType(int width, int widthMin, AstNumeric numeric) const;
     AstNodeDType* findLogicDType(int width, int widthMin, AstNumeric numeric) const;
     AstNodeDType* findLogicRangeDType(VNumRange range, int widthMin, AstNumeric numeric) const;
@@ -1463,9 +1599,10 @@ public:
     virtual void addBeforeStmt(AstNode* newp, AstNode* belowp);  // When calling, "this" is second argument
 
     // METHODS - Iterate on a tree
-    static AstNode* cloneTreeNull(AstNode* nodep, bool cloneNextLink) {  // Clone or return NULL if NULL
+    // Clone or return NULL if NULL
+    static AstNode* cloneTreeNull(AstNode* nodep, bool cloneNextLink) {
         return nodep ? nodep->cloneTree(cloneNextLink) : NULL; }
-    AstNode* cloneTree(bool cloneNextLink);
+    AstNode* cloneTree(bool cloneNextLink);  // Not const, as sets clonep() on original nodep
     bool gateTree() { return gateTreeIter(); }  // Is tree isGateOptimizable?
     bool sameTree(const AstNode* node2p) const;  // Does tree of this == node2p?
     bool sameGateTree(const AstNode* node2p) const;  // Does tree of this == node2p?, not allowing non-isGateOptimizable
@@ -1519,10 +1656,21 @@ private:
 
     // CONVERSION
 public:
-#include "V3Ast__gen_interface.h"  // From ./astgen
-    // Things like:
-    //  AstAlways*      castAlways();
+    // These for use by VN_IS macro only
+    template<class T>
+    static bool privateIs(const AstNode* nodep);
+
+    // These for use by VN_CAST macro only
+    template<class T>
+    static T* privateCast(AstNode* nodep);
+
+    // These for use by VN_CAST_CONST macro only
+    template<class T>
+    static const T* privateConstCast(const AstNode* nodep);
 };
+
+// Specialisations of privateIs/privateCast
+#include "V3Ast__gen_impl.h"  // From ./astgen
 
 inline std::ostream& operator<<(std::ostream& os, const AstNode* rhs) {
     if (!rhs) os<<"NULL"; else rhs->dump(os); return os;
@@ -1543,8 +1691,8 @@ inline void AstNRelinker::relink(AstNode* newp) { newp->AstNode::relink(this); }
 class AstNodeMath : public AstNode {
     // Math -- anything that's part of an expression tree
 public:
-    explicit AstNodeMath(FileLine* fl)
-        : AstNode(fl) {}
+    AstNodeMath(AstType t, FileLine* fl)
+        : AstNode(t, fl) {}
     ASTNODE_BASE_FUNCS(NodeMath)
     // METHODS
     virtual bool hasDType() const { return true; }
@@ -1560,8 +1708,8 @@ public:
 class AstNodeTermop : public AstNodeMath {
     // Terminal operator -- a operator with no "inputs"
 public:
-    explicit AstNodeTermop(FileLine* fl)
-        : AstNodeMath(fl) {}
+    AstNodeTermop(AstType t, FileLine* fl)
+        : AstNodeMath(t, fl) {}
     ASTNODE_BASE_FUNCS(NodeTermop)
     // Know no children, and hot function, so skip iterator for speed
     // See checkTreeIter also that asserts no children
@@ -1572,8 +1720,8 @@ public:
 class AstNodeUniop : public AstNodeMath {
     // Unary math
 public:
-    AstNodeUniop(FileLine* fl, AstNode* lhsp)
-        : AstNodeMath(fl) {
+    AstNodeUniop(AstType t, FileLine* fl, AstNode* lhsp)
+        : AstNodeMath(t, fl) {
         dtypeFrom(lhsp);
         setOp1p(lhsp); }
     ASTNODE_BASE_FUNCS(NodeUniop)
@@ -1594,8 +1742,8 @@ public:
 class AstNodeBiop : public AstNodeMath {
     // Binary math
 public:
-    AstNodeBiop(FileLine* fl, AstNode* lhs, AstNode* rhs)
-        : AstNodeMath(fl) {
+    AstNodeBiop(AstType t, FileLine* fl, AstNode* lhs, AstNode* rhs)
+        : AstNodeMath(t, fl) {
         setOp1p(lhs); setOp2p(rhs); }
     ASTNODE_BASE_FUNCS(NodeBiop)
     virtual AstNode* cloneType(AstNode* lhsp, AstNode* rhsp) = 0;  // Clone single node, just get same type back.
@@ -1621,8 +1769,8 @@ public:
 class AstNodeTriop : public AstNodeMath {
     // Trinary math
 public:
-    AstNodeTriop(FileLine* fl, AstNode* lhs, AstNode* rhs, AstNode* ths)
-        : AstNodeMath(fl) {
+    AstNodeTriop(AstType t, FileLine* fl, AstNode* lhs, AstNode* rhs, AstNode* ths)
+        : AstNodeMath(t, fl) {
         setOp1p(lhs); setOp2p(rhs); setOp3p(ths); }
     ASTNODE_BASE_FUNCS(NodeTriop)
     AstNode* lhsp() const { return op1p(); }
@@ -1649,22 +1797,22 @@ public:
 class AstNodeBiCom : public AstNodeBiop {
     // Binary math with commutative properties
 public:
-    AstNodeBiCom(FileLine* fl, AstNode* lhs, AstNode* rhs)
-        : AstNodeBiop(fl, lhs, rhs) {}
+    AstNodeBiCom(AstType t, FileLine* fl, AstNode* lhs, AstNode* rhs)
+        : AstNodeBiop(t, fl, lhs, rhs) {}
     ASTNODE_BASE_FUNCS(NodeBiCom)
 };
 
 class AstNodeBiComAsv : public AstNodeBiCom {
     // Binary math with commutative & associative properties
 public:
-    AstNodeBiComAsv(FileLine* fl, AstNode* lhs, AstNode* rhs)
-        : AstNodeBiCom(fl, lhs, rhs) {}
+    AstNodeBiComAsv(AstType t, FileLine* fl, AstNode* lhs, AstNode* rhs)
+        : AstNodeBiCom(t, fl, lhs, rhs) {}
     ASTNODE_BASE_FUNCS(NodeBiComAsv)
 };
 class AstNodeCond : public AstNodeTriop {
 public:
-    AstNodeCond(FileLine* fl, AstNode* condp, AstNode* expr1p, AstNode* expr2p)
-        : AstNodeTriop(fl, condp, expr1p, expr2p) {
+    AstNodeCond(AstType t, FileLine* fl, AstNode* condp, AstNode* expr1p, AstNode* expr2p)
+        : AstNodeTriop(t, fl, condp, expr1p, expr2p) {
         if (expr1p) dtypeFrom(expr1p);
         else if (expr2p) dtypeFrom(expr2p);
     }
@@ -1690,8 +1838,8 @@ public:
 class AstNodePreSel : public AstNode {
     // Something that becomes an AstSel
 public:
-    AstNodePreSel(FileLine* fl, AstNode* lhs, AstNode* rhs, AstNode* ths)
-        : AstNode(fl) {
+    AstNodePreSel(AstType t, FileLine* fl, AstNode* lhs, AstNode* rhs, AstNode* ths)
+        : AstNode(t, fl) {
         setOp1p(lhs); setOp2p(rhs); setNOp3p(ths); }
     ASTNODE_BASE_FUNCS(NodePreSel)
     AstNode* lhsp() const { return op1p(); }
@@ -1710,20 +1858,23 @@ public:
 
 class AstNodeStmt : public AstNode {
     // Statement -- anything that's directly under a function
+    bool m_statement;  // Really a statement (e.g. not a function with return)
 public:
-    explicit AstNodeStmt(FileLine* fl)
-        : AstNode(fl) {}
+    AstNodeStmt(AstType t, FileLine* fl, bool statement = true)
+        : AstNode(t, fl)
+        , m_statement(statement) {}
     ASTNODE_BASE_FUNCS(NodeStmt)
     // METHODS
-    virtual bool isStatement() const { return true; }  // Really a statement
+    bool isStatement() const { return m_statement; }  // Really a statement
+    void statement(bool flag) { m_statement = flag; }
     virtual void addNextStmt(AstNode* newp, AstNode* belowp);  // Stop statement searchback here
     virtual void addBeforeStmt(AstNode* newp, AstNode* belowp);  // Stop statement searchback here
 };
 
 class AstNodeAssign : public AstNodeStmt {
 public:
-    AstNodeAssign(FileLine* fl, AstNode* lhsp, AstNode* rhsp)
-        : AstNodeStmt(fl) {
+    AstNodeAssign(AstType t, FileLine* fl, AstNode* lhsp, AstNode* rhsp)
+        : AstNodeStmt(t, fl) {
         setOp1p(rhsp); setOp2p(lhsp);
         dtypeFrom(lhsp);
     }
@@ -1745,9 +1896,9 @@ public:
 
 class AstNodeFor : public AstNodeStmt {
 public:
-    AstNodeFor(FileLine* fileline, AstNode* initsp, AstNode* condp,
+    AstNodeFor(AstType t, FileLine* fl, AstNode* initsp, AstNode* condp,
                AstNode* incsp, AstNode* bodysp)
-        : AstNodeStmt(fileline) {
+        : AstNodeStmt(t, fl) {
         addNOp1p(initsp); setOp2p(condp); addNOp3p(incsp); addNOp4p(bodysp);
     }
     ASTNODE_BASE_FUNCS(NodeFor)
@@ -1765,8 +1916,8 @@ class AstNodeIf : public AstNodeStmt {
 private:
     VBranchPred m_branchPred;  // Branch prediction as taken/untaken?
 public:
-    AstNodeIf(FileLine* fl, AstNode* condp, AstNode* ifsp, AstNode* elsesp)
-        : AstNodeStmt(fl) {
+    AstNodeIf(AstType t, FileLine* fl, AstNode* condp, AstNode* ifsp, AstNode* elsesp)
+        : AstNodeStmt(t, fl) {
         setOp1p(condp); addNOp2p(ifsp); addNOp3p(elsesp);
     }
     ASTNODE_BASE_FUNCS(NodeIf)
@@ -1787,8 +1938,8 @@ public:
 
 class AstNodeCase : public AstNodeStmt {
 public:
-    AstNodeCase(FileLine* fl, AstNode* exprp, AstNode* casesp)
-        : AstNodeStmt(fl) {
+    AstNodeCase(AstType t, FileLine* fl, AstNode* exprp, AstNode* casesp)
+        : AstNodeStmt(t, fl) {
         setOp1p(exprp); addNOp2p(casesp);
     }
     ASTNODE_BASE_FUNCS(NodeCase)
@@ -1803,7 +1954,8 @@ public:
 class AstNodeSenItem : public AstNode {
     // An AstSenItem or AstSenGate
 public:
-    explicit AstNodeSenItem(FileLine* fl) : AstNode(fl) {}
+    AstNodeSenItem(AstType t, FileLine* fl)
+        : AstNode(t, fl) {}
     ASTNODE_BASE_FUNCS(NodeSenItem)
     virtual bool isClocked() const = 0;
     virtual bool isCombo() const = 0;
@@ -1824,14 +1976,14 @@ private:
     bool        m_hierThis;     // Hiername points to "this" function
     void init();
 public:
-    AstNodeVarRef(FileLine* fl, const string& name, bool lvalue)
-        : AstNodeMath(fl), m_lvalue(lvalue), m_varp(NULL), m_varScopep(NULL),
-          m_packagep(NULL), m_name(name), m_hierThis(false) {
+    AstNodeVarRef(AstType t, FileLine* fl, const string& name, bool lvalue)
+        : AstNodeMath(t, fl), m_lvalue(lvalue), m_varp(NULL), m_varScopep(NULL)
+        , m_packagep(NULL), m_name(name), m_hierThis(false) {
         init();
     }
-    AstNodeVarRef(FileLine* fl, const string& name, AstVar* varp, bool lvalue)
-        : AstNodeMath(fl), m_lvalue(lvalue), m_varp(varp), m_varScopep(NULL),
-          m_packagep(NULL), m_name(name), m_hierThis(false) {
+    AstNodeVarRef(AstType t, FileLine* fl, const string& name, AstVar* varp, bool lvalue)
+        : AstNodeMath(t, fl), m_lvalue(lvalue), m_varp(varp), m_varScopep(NULL)
+        , m_packagep(NULL), m_name(name), m_hierThis(false) {
         // May have varp==NULL
         init();
     }
@@ -1866,8 +2018,8 @@ private:
     string      m_text;
 public:
     // Node that simply puts text into the output stream
-    AstNodeText(FileLine* fileline, const string& textp)
-        : AstNode(fileline) {
+    AstNodeText(AstType t, FileLine* fl, const string& textp)
+        : AstNode(t, fl) {
         m_text = textp;  // Copy it
     }
     ASTNODE_BASE_FUNCS(NodeText)
@@ -1892,7 +2044,8 @@ private:
     static int  s_uniqueNum;    // Unique number assigned to each dtype during creation for IEEE matching
 public:
     // CONSTRUCTORS
-    explicit AstNodeDType(FileLine* fl) : AstNode(fl) {
+    AstNodeDType(AstType t, FileLine* fl)
+        : AstNode(t, fl) {
         m_width = 0; m_widthMin = 0; m_generic = false;
     }
     ASTNODE_BASE_FUNCS(NodeDType)
@@ -1909,9 +2062,13 @@ public:
     virtual bool maybePointedTo() const { return true; }
     virtual AstNodeDType* virtRefDTypep() const { return NULL; }  // Iff has a non-null refDTypep(), as generic node function
     virtual void virtRefDTypep(AstNodeDType* nodep) { }  // Iff has refDTypep(), set as generic node function
+    virtual AstNodeDType* virtRefDType2p() const { return NULL; }  // Iff has a non-null second dtypep, as generic node function
+    virtual void virtRefDType2p(AstNodeDType* nodep) { }  // Iff has second dtype, set as generic node function
     virtual bool similarDType(AstNodeDType* samep) const = 0;  // Assignable equivalence.  Call skipRefp() on this and samep before calling
     virtual AstNodeDType* subDTypep() const { return NULL; }  // Iff has a non-null subDTypep(), as generic node function
     virtual bool isFourstate() const;
+    virtual string prettyDTypeName() const { return prettyTypeName(); }  // Ideally an IEEE $typename
+    string prettyDTypeNameQ() const { return "'" + prettyDTypeName() + "'"; }
     //
     // Changing the width may confuse the data type resolution, so must clear
     // TypeTable cache after use.
@@ -1939,7 +2096,8 @@ public:
     const char* charIQWN() const { return (isString() ? "N" : isWide() ? "W" : isQuad() ? "Q" : "I"); }
 };
 
-class AstNodeClassDType : public AstNodeDType {
+class AstNodeUOrStructDType : public AstNodeDType {
+    // A struct or union; common handling
 private:
     // TYPES
     typedef std::map<string,AstMemberDType*> MemberNameMap;
@@ -1949,14 +2107,14 @@ private:
     bool                m_isFourstate;
     MemberNameMap       m_members;
 public:
-    AstNodeClassDType(FileLine* fl, AstNumeric numericUnpack)
-        : AstNodeDType(fl) {
+    AstNodeUOrStructDType(AstType t, FileLine* fl, AstNumeric numericUnpack)
+        : AstNodeDType(t, fl) {
         // AstNumeric::NOSIGN overloaded to indicate not packed
         m_packed = (numericUnpack != AstNumeric::NOSIGN);
         m_isFourstate = false;  // V3Width computes
         numeric(AstNumeric::fromBool(numericUnpack.isSigned()));
     }
-    ASTNODE_BASE_FUNCS(NodeClassDType)
+    ASTNODE_BASE_FUNCS(NodeUOrStructDType)
     virtual const char* broken() const;
     virtual void dump(std::ostream& str) const;
     // For basicp() we reuse the size to indicate a "fake" basic type of same size
@@ -2000,7 +2158,8 @@ private:
     AstNodeDType* m_refDTypep;  // Elements of this type (after widthing)
     AstNode* rangenp() const { return op2p(); }  // op2 = Array(s) of variable
 public:
-    explicit AstNodeArrayDType(FileLine* fl) : AstNodeDType(fl) {
+    AstNodeArrayDType(AstType t, FileLine* fl)
+        : AstNodeDType(t, fl) {
         m_refDTypep = NULL;
     }
     ASTNODE_BASE_FUNCS(NodeArrayDType)
@@ -2051,8 +2210,8 @@ public:
 class AstNodeSel : public AstNodeBiop {
     // Single bit range extraction, perhaps with non-constant selection or array selection
 public:
-    AstNodeSel(FileLine* fl, AstNode* fromp, AstNode* bitp)
-        : AstNodeBiop(fl, fromp, bitp) {}
+    AstNodeSel(AstType t, FileLine* fl, AstNode* fromp, AstNode* bitp)
+        : AstNodeBiop(t, fl, fromp, bitp) {}
     ASTNODE_BASE_FUNCS(NodeSel)
     AstNode* fromp() const { return op1p(); }  // op1 = Extracting what (NULL=TBD during parsing)
     void fromp(AstNode* nodep) { setOp1p(nodep); }
@@ -2065,7 +2224,8 @@ public:
 class AstNodeStream : public AstNodeBiop {
     // Verilog {rhs{lhs}} - Note rhsp() is the slice size, not the lhsp()
 public:
-    AstNodeStream(FileLine* fl, AstNode* lhsp, AstNode* rhsp) : AstNodeBiop(fl, lhsp, rhsp) {
+    AstNodeStream(AstType t, FileLine* fl, AstNode* lhsp, AstNode* rhsp)
+        : AstNodeBiop(t, fl, lhsp, rhsp) {
         if (lhsp->dtypep()) {
             dtypeSetLogicSized(lhsp->dtypep()->width(), AstNumeric::UNSIGNED);
         }
@@ -2075,6 +2235,54 @@ public:
 
 //######################################################################
 // Tasks/functions common handling
+
+class AstNodeCCall : public AstNodeStmt {
+    // A call of a C++ function, perhaps a AstCFunc or perhaps globally named
+    // Functions are not statements, while tasks are. AstNodeStmt needs isStatement() to deal.
+    AstCFunc* m_funcp;
+    string m_hiername;
+    string m_argTypes;
+public:
+    AstNodeCCall(AstType t, FileLine* fl, AstCFunc* funcp, AstNode* argsp = NULL)
+        : AstNodeStmt(t, fl, true)
+        , m_funcp(funcp) {
+        addNOp2p(argsp);
+    }
+    // Replacement form for V3Combine
+    // Note this removes old attachments from the oldp
+    AstNodeCCall(AstType t, AstNodeCCall* oldp, AstCFunc* funcp)
+        : AstNodeStmt(t, oldp->fileline(), true)
+        , m_funcp(funcp) {
+        m_funcp = funcp;
+        m_hiername = oldp->hiername();
+        m_argTypes = oldp->argTypes();
+        if (oldp->argsp()) addNOp2p(oldp->argsp()->unlinkFrBackWithNext());
+    }
+    ASTNODE_BASE_FUNCS(NodeCCall)
+    virtual void dump(std::ostream& str=std::cout) const;
+    virtual void cloneRelink();
+    virtual const char* broken() const;
+    virtual int instrCount() const { return instrCountCall(); }
+    virtual V3Hash sameHash() const { return V3Hash(funcp()); }
+    virtual bool same(const AstNode* samep) const {
+        const AstNodeCCall* asamep = static_cast<const AstNodeCCall*>(samep);
+        return (funcp() == asamep->funcp() && argTypes() == asamep->argTypes());
+    }
+    AstNode* exprsp() const { return op2p(); }  // op2 = expressions to print
+    virtual bool isGateOptimizable() const { return false; }
+    virtual bool isPredictOptimizable() const { return false; }
+    virtual bool isPure() const;
+    virtual bool isOutputter() const { return !isPure(); }
+    AstCFunc* funcp() const { return m_funcp; }
+    string hiername() const { return m_hiername; }
+    void hiername(const string& hn) { m_hiername = hn; }
+    string hiernameProtect() const;
+    void argTypes(const string& str) { m_argTypes = str; }
+    string argTypes() const { return m_argTypes; }
+    // op1p reserved for AstCMethodCall
+    AstNode* argsp() const { return op2p(); }
+    void addArgsp(AstNode* nodep) { addOp2p(nodep); }
+};
 
 class AstNodeFTask : public AstNode {
 private:
@@ -2091,8 +2299,8 @@ private:
     bool        m_dpiTask:1;    // DPI import task (vs. void function)
     bool        m_pure:1;       // DPI import pure
 public:
-    AstNodeFTask(FileLine* fileline, const string& name, AstNode* stmtsp)
-        : AstNode(fileline)
+    AstNodeFTask(AstType t, FileLine* fl, const string& name, AstNode* stmtsp)
+        : AstNode(t, fl)
         , m_name(name)
         , m_dpiOpenParent(0), m_taskPublic(false)
         , m_attrIsolateAssign(false), m_prototype(false)
@@ -2154,15 +2362,15 @@ private:
     string              m_inlinedDots;  // Dotted hierarchy flattened out
     AstPackage*         m_packagep;     // Package hierarchy
 public:
-    AstNodeFTaskRef(FileLine* fl, AstNode* namep, AstNode* pinsp)
-        : AstNodeStmt(fl)
+    AstNodeFTaskRef(AstType t, FileLine* fl, bool statement, AstNode* namep, AstNode* pinsp)
+        : AstNodeStmt(t, fl, statement)
         , m_taskp(NULL), m_packagep(NULL) {
-        setOp1p(namep); addNOp2p(pinsp);
+        setOp1p(namep); addNOp3p(pinsp);
     }
-    AstNodeFTaskRef(FileLine* fl, const string& name, AstNode* pinsp)
-        : AstNodeStmt(fl)
+    AstNodeFTaskRef(AstType t, FileLine* fl, bool statement, const string& name, AstNode* pinsp)
+        : AstNodeStmt(t, fl, statement)
         , m_taskp(NULL), m_name(name), m_packagep(NULL) {
-        addNOp2p(pinsp);
+        addNOp3p(pinsp);
     }
     ASTNODE_BASE_FUNCS(NodeFTaskRef)
     virtual const char* broken() const { BROKEN_RTN(m_taskp && !m_taskp->brokeExists()); return NULL; }
@@ -2184,12 +2392,13 @@ public:
     void packagep(AstPackage* nodep) { m_packagep = nodep; }
     // op1 = namep
     AstNode* namep() const { return op1p(); }
-    // op2 = Pin interconnection list
-    AstNode* pinsp() const { return op2p(); }
-    void addPinsp(AstNode* nodep) { addOp2p(nodep); }
-    // op3 = scope tracking
-    AstScopeName* scopeNamep() const { return VN_CAST(op3p(), ScopeName); }
-    void scopeNamep(AstNode* nodep) { setNOp3p(nodep); }
+    // op2 = reserved for AstMethodCall
+    // op3 = Pin interconnection list
+    AstNode* pinsp() const { return op3p(); }
+    void addPinsp(AstNode* nodep) { addOp3p(nodep); }
+    // op4 = scope tracking
+    AstScopeName* scopeNamep() const { return VN_CAST(op4p(), ScopeName); }
+    void scopeNamep(AstNode* nodep) { setNOp4p(nodep); }
 };
 
 class AstNodeModule : public AstNode {
@@ -2211,8 +2420,8 @@ private:
     int         m_varNum;       // Incrementing variable number
     int         m_typeNum;      // Incrementing implicit type number
 public:
-    AstNodeModule(FileLine* fl, const string& name)
-        : AstNode(fl)
+    AstNodeModule(AstType t, FileLine* fl, const string& name)
+        : AstNode(t, fl)
         , m_name(name), m_origName(name)
         , m_modPublic(false), m_modTrace(false), m_inLibrary(false), m_dead(false)
         , m_internal(false), m_recursive(false), m_recursiveClone(false)
@@ -2225,11 +2434,11 @@ public:
     AstActive* activesp() const { return VN_CAST(op3p(), Active); }  // op3 = List of i/sblocks
     // METHODS
     void addInlinesp(AstNode* nodep) { addOp1p(nodep); }
-    void addStmtp(AstNode* nodep) { addOp2p(nodep); }
+    void addStmtp(AstNode* nodep) { addNOp2p(nodep); }
     void addActivep(AstNode* nodep) { addOp3p(nodep); }
     // ACCESSORS
     virtual void name(const string& name) { m_name = name; }
-    string origName() const { return m_origName; }
+    virtual string origName() const { return m_origName; }
     string hierName() const    { return m_hierName; }
     void hierName(const string& hierName) { m_hierName = hierName; }
     bool inLibrary() const { return m_inLibrary; }
@@ -2256,18 +2465,14 @@ public:
 class AstNodeRange : public AstNode {
     // A range, sized or unsized
 public:
-    explicit AstNodeRange(FileLine* fl) : AstNode(fl) { }
+    AstNodeRange(AstType t, FileLine* fl)
+        : AstNode(t, fl) {}
     ASTNODE_BASE_FUNCS(NodeRange)
 };
 
 //######################################################################
 
-#include "V3AstNodes.h"
-
-#include "V3Ast__gen_impl.h"  // From ./astgen
-// Things like:
-//  inline AstAlways* AstNode::castAlways() { return dynamic_cast<AstAlways*>(this); }
-//  inline bool AstNode::privateIsaAlways(const AstNode* nodep) { return nodep && nodep->type() == AstType::atAlways; }
+#include "V3AstNodes__gen.h"
 
 //######################################################################
 // Inline AstNVisitor METHODS

@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Collect and print statistics
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2005-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2005-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -71,7 +71,7 @@ private:
 
     // VISITORS
     //========== Statements
-    virtual void visit(AstClocking* nodep) {
+    virtual void visit(AstClocking* nodep) VL_OVERRIDE {
         UINFO(8,"   CLOCKING"<<nodep<<endl);
         // Store the new default clock, reset on new module
         m_seniDefaultp = nodep->sensesp();
@@ -81,9 +81,9 @@ private:
         } else {
             nodep->unlinkFrBack();
         }
-        pushDeletep(nodep); VL_DANGLING(nodep);
+        VL_DO_DANGLING(pushDeletep(nodep), nodep);
     }
-    virtual void visit(AstAlways* nodep) {
+    virtual void visit(AstAlways* nodep) VL_OVERRIDE {
         iterateAndNextNull(nodep->sensesp());
         if (nodep->sensesp()) {
             m_seniAlwaysp = nodep->sensesp()->sensesp();
@@ -92,20 +92,22 @@ private:
         m_seniAlwaysp = NULL;
     }
 
-    virtual void visit(AstNodePslCoverOrAssert* nodep) {
+    virtual void visit(AstNodeCoverOrAssert* nodep) VL_OVERRIDE {
         if (nodep->sentreep()) return;  // Already processed
         clearAssertInfo();
-        // Find PslClocking's buried under nodep->exprsp
+        // Find Clocking's buried under nodep->exprsp
         iterateChildren(nodep);
-        nodep->sentreep(newSenTree(nodep));
+        if (!nodep->immediate()) {
+            nodep->sentreep(newSenTree(nodep));
+        }
         clearAssertInfo();
     }
-    virtual void visit(AstPast* nodep) {
+    virtual void visit(AstPast* nodep) VL_OVERRIDE {
         if (nodep->sentreep()) return;  // Already processed
         iterateChildren(nodep);
         nodep->sentreep(newSenTree(nodep));
     }
-    virtual void visit(AstPslClocked* nodep) {
+    virtual void visit(AstPropClocked* nodep) VL_OVERRIDE {
         // No need to iterate the body, once replace will get iterated
         iterateAndNextNull(nodep->sensesp());
         if (m_senip) {
@@ -114,22 +116,28 @@ private:
         // Block is the new expression to evaluate
         AstNode* blockp = nodep->propp()->unlinkFrBack();
         if (nodep->disablep()) {
-            blockp = new AstAnd(nodep->disablep()->fileline(),
-                                new AstNot(nodep->disablep()->fileline(),
-                                           nodep->disablep()->unlinkFrBack()),
-                                blockp);
+            if (VN_IS(nodep->backp(), Cover)) {
+                blockp = new AstAnd(nodep->disablep()->fileline(),
+                                    new AstNot(nodep->disablep()->fileline(),
+                                               nodep->disablep()->unlinkFrBack()),
+                                    blockp);
+            } else {
+                blockp = new AstOr(nodep->disablep()->fileline(),
+                                   nodep->disablep()->unlinkFrBack(),
+                                   blockp);
+            }
         }
         // Unlink and just keep a pointer to it, convert to sentree as needed
         m_senip = nodep->sensesp();
         nodep->replaceWith(blockp);
-        pushDeletep(nodep); VL_DANGLING(nodep);
+        VL_DO_DANGLING(pushDeletep(nodep), nodep);
     }
-    virtual void visit(AstNodeModule* nodep) {
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         // Reset defaults
         m_seniDefaultp = NULL;
     }
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 

@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Command line options
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -34,6 +34,43 @@
 
 class V3OptionsImp;
 class FileLine;
+
+//######################################################################
+
+class VOptionBool {
+    // Class to track options that are either not specified (and default
+    // true/false), versus user setting the option to true or false
+public:
+    enum en {
+        OPT_DEFAULT_FALSE = 0,
+        OPT_DEFAULT_TRUE,
+        OPT_TRUE,
+        OPT_FALSE,
+        _ENUM_END
+    };
+    enum en m_e;
+    inline VOptionBool() : m_e(OPT_DEFAULT_FALSE) {}
+    // cppcheck-suppress noExplicitConstructor
+    inline VOptionBool(en _e) : m_e(_e) {}
+    explicit inline VOptionBool(int _e) : m_e(static_cast<en>(_e)) {}
+    operator en() const { return m_e; }
+    bool isDefault() const { return m_e == OPT_DEFAULT_FALSE || m_e == OPT_DEFAULT_TRUE; }
+    bool isTrue() const { return m_e == OPT_TRUE || m_e == OPT_DEFAULT_TRUE; }
+    bool isFalse() const { return m_e == OPT_FALSE || m_e == OPT_DEFAULT_FALSE; }
+    void setTrueOrFalse(bool flag) { m_e = flag ? OPT_TRUE : OPT_FALSE; }
+    const char* ascii() const {
+        static const char* const names[] = {
+            "DEFAULT_FALSE", "DEFAULT_TRUE", "TRUE", "FALSE"};
+        return names[m_e]; }
+};
+inline bool operator==(const VOptionBool& lhs, const VOptionBool& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const VOptionBool& lhs, VOptionBool::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(VOptionBool::en lhs, const VOptionBool& rhs) { return lhs == rhs.m_e; }
+inline std::ostream& operator<<(std::ostream& os, const VOptionBool& rhs) {
+    return os << rhs.ascii();
+}
 
 //######################################################################
 
@@ -66,9 +103,11 @@ public:
         return names[m_e];
     }
 };
-inline bool operator==(TraceFormat lhs, TraceFormat rhs) { return (lhs.m_e == rhs.m_e); }
-inline bool operator==(TraceFormat lhs, TraceFormat::en rhs) { return (lhs.m_e == rhs); }
-inline bool operator==(TraceFormat::en lhs, TraceFormat rhs) { return (lhs == rhs.m_e); }
+inline bool operator==(const TraceFormat& lhs, const TraceFormat& rhs) {
+    return lhs.m_e == rhs.m_e;
+}
+inline bool operator==(const TraceFormat& lhs, TraceFormat::en rhs) { return lhs.m_e == rhs; }
+inline bool operator==(TraceFormat::en lhs, const TraceFormat& rhs) { return lhs == rhs.m_e; }
 
 typedef std::vector<string> V3StringList;
 typedef std::set<string> V3StringSet;
@@ -101,7 +140,6 @@ class V3Options {
 
 
     bool        m_preprocOnly;  // main switch: -E
-    bool        m_makeDepend;   // main switch: -MMD
     bool        m_makePhony;    // main switch: -MP
     bool        m_preprocNoLine;// main switch: -P
     bool        m_assert;       // main switch: --assert
@@ -110,6 +148,7 @@ class V3Options {
     bool        m_bboxUnsup;    // main switch: --bbox-unsup
     bool        m_cdc;          // main switch: --cdc
     bool        m_cmake;        // main switch: --make cmake
+    bool        m_context;      // main switch: --Wcontext
     bool        m_coverageLine; // main switch: --coverage-block
     bool        m_coverageToggle;// main switch: --coverage-toggle
     bool        m_coverageUnderscore;// main switch: --coverage-underscore
@@ -131,6 +170,7 @@ class V3Options {
     bool        m_gmake;        // main switch: --make gmake
     bool        m_orderClockDly;// main switch: --order-clock-delay
     bool        m_outFormatOk;  // main switch: --cc, --sc or --sp was specified
+    bool        m_pedantic;     // main switch: --Wpedantic
     bool        m_pinsScUint;   // main switch: --pins-sc-uint
     bool        m_pinsScBigUint;// main switch: --pins-sc-biguint
     bool        m_pinsUint8;    // main switch: --pins-uint8
@@ -144,14 +184,15 @@ class V3Options {
     bool        m_relativeIncludes; // main switch: --relative-includes
     bool        m_reportUnoptflat; // main switch: --report-unoptflat
     bool        m_savable;      // main switch: --savable
+    bool        m_structsPacked;  // main switch: --structs-packed
     bool        m_systemC;      // main switch: --sc: System C instead of simple C++
-    bool        m_skipIdentical;// main switch: --skip-identical
     bool        m_stats;        // main switch: --stats
     bool        m_statsVars;    // main switch: --stats-vars
     bool        m_threadsCoarsen;  // main switch: --threads-coarsen
     bool        m_threadsDpiPure;  // main switch: --threads-dpi all/pure
     bool        m_threadsDpiUnpure;  // main switch: --threads-dpi all
     bool        m_trace;        // main switch: --trace
+    bool        m_traceCoverage;  // main switch: --trace-coverage
     bool        m_traceDups;    // main switch: --trace-dups
     bool        m_traceParams;  // main switch: --trace-params
     bool        m_traceStructs; // main switch: --trace-structs
@@ -167,11 +208,14 @@ class V3Options {
     int         m_gateStmts;    // main switch: --gate-stmts
     int         m_ifDepth;      // main switch: --if-depth
     int         m_inlineMult;   // main switch: --inline-mult
+    VOptionBool m_makeDepend;  // main switch: -MMD
+    int         m_maxNumWidth;  // main switch: --max-num-width
     int         m_moduleRecursion;// main switch: --module-recursion-depth
     int         m_outputSplit;  // main switch: --output-split
     int         m_outputSplitCFuncs;// main switch: --output-split-cfuncs
     int         m_outputSplitCTrace;// main switch: --output-split-ctrace
     int         m_pinsBv;       // main switch: --pins-bv
+    VOptionBool m_skipIdentical;  // main switch: --skip-identical
     int         m_threads;      // main switch: --threads (0 == --no-threads)
     int         m_threadsMaxMTasks;  // main switch: --threads-max-mtasks
     int         m_traceDepth;   // main switch: --trace-depth
@@ -199,6 +243,7 @@ class V3Options {
     string      m_unusedRegexp; // main switch: --unused-regexp
     string      m_xAssign;      // main switch: --x-assign
     string      m_xInitial;     // main switch: --x-initial
+    string      m_xmlOutput;    // main switch: --xml-output
 
     // Language is now held in FileLine, on a per-node basis. However we still
     // have a concept of the default language at a global level.
@@ -239,6 +284,7 @@ class V3Options {
     void showVersion(bool verbose);
     void coverage(bool flag) { m_coverageLine = m_coverageToggle = m_coverageUser = flag; }
     bool onoff(const char* sw, const char* arg, bool& flag);
+    bool onoffb(const char* sw, const char* arg, VOptionBool& flag);
     bool suffixed(const string& sw, const char* arg);
     string parseFileArg(const string& optdir, const string& relfilename);
     bool parseLangExt(const char* swp, const char* langswp, const V3LangCode& lc);
@@ -268,7 +314,6 @@ class V3Options {
 
     // ACCESSORS (options)
     bool preprocOnly() const { return m_preprocOnly; }
-    bool makeDepend() const { return m_makeDepend; }
     bool makePhony() const { return m_makePhony; }
     bool preprocNoLine() const { return m_preprocNoLine; }
     bool underlineZero() const { return m_underlineZero; }
@@ -277,15 +322,16 @@ class V3Options {
     bool systemC() const { return m_systemC; }
     bool usingSystemCLibs() const { return !lintOnly() && systemC(); }
     bool savable() const { return m_savable; }
-    bool skipIdentical() const { return m_skipIdentical; }
     bool stats() const { return m_stats; }
     bool statsVars() const { return m_statsVars; }
+    bool structsPacked() const { return m_structsPacked; }
     bool assertOn() const { return m_assert; }  // assertOn as __FILE__ may be defined
     bool autoflush() const { return m_autoflush; }
     bool bboxSys() const { return m_bboxSys; }
     bool bboxUnsup() const { return m_bboxUnsup; }
     bool cdc() const { return m_cdc; }
     bool cmake() const { return m_cmake; }
+    bool context() const { return m_context; }
     bool coverage() const { return m_coverageLine || m_coverageToggle || m_coverageUser; }
     bool coverageLine() const { return m_coverageLine; }
     bool coverageToggle() const { return m_coverageToggle; }
@@ -307,6 +353,7 @@ class V3Options {
     bool threadsDpiUnpure() const { return m_threadsDpiUnpure; }
     bool threadsCoarsen() const { return m_threadsCoarsen; }
     bool trace() const { return m_trace; }
+    bool traceCoverage() const { return m_traceCoverage; }
     bool traceDups() const { return m_traceDups; }
     bool traceParams() const { return m_traceParams; }
     bool traceStructs() const { return m_traceStructs; }
@@ -314,6 +361,7 @@ class V3Options {
     bool orderClockDly() const { return m_orderClockDly; }
     bool outFormatOk() const { return m_outFormatOk; }
     bool keepTempFiles() const { return (V3Error::debugDefault()!=0); }
+    bool pedantic() const { return m_pedantic; }
     bool pinsScUint() const { return m_pinsScUint; }
     bool pinsScBigUint() const { return m_pinsScBigUint; }
     bool pinsUint8() const { return m_pinsUint8; }
@@ -338,11 +386,14 @@ class V3Options {
     int gateStmts() const { return m_gateStmts; }
     int ifDepth() const { return m_ifDepth; }
     int inlineMult() const { return m_inlineMult; }
+    VOptionBool makeDepend() const { return m_makeDepend; }
+    int maxNumWidth() const { return m_maxNumWidth; }
     int moduleRecursionDepth() const { return m_moduleRecursion; }
     int outputSplit() const { return m_outputSplit; }
     int outputSplitCFuncs() const { return m_outputSplitCFuncs; }
     int outputSplitCTrace() const { return m_outputSplitCTrace; }
     int pinsBv() const { return m_pinsBv; }
+    VOptionBool skipIdentical() const { return m_skipIdentical; }
     int threads() const { return m_threads; }
     int threadsMaxMTasks() const { return m_threadsMaxMTasks; }
     bool mtasks() const { return (m_threads > 1); }
@@ -379,6 +430,7 @@ class V3Options {
     string unusedRegexp() const { return m_unusedRegexp; }
     string xAssign() const { return m_xAssign; }
     string xInitial() const { return m_xInitial; }
+    string xmlOutput() const { return m_xmlOutput; }
 
     const V3StringSet& cppFiles() const { return m_cppFiles; }
     const V3StringList& cFlags() const { return m_cFlags; }
@@ -419,7 +471,11 @@ class V3Options {
     bool oTable() const { return m_oTable; }
 
     string traceClassBase() const { return m_traceFormat.classBase(); }
-    string traceSourceName() const { return m_traceFormat.sourceName(); }
+    string traceClassLang() const { return m_traceFormat.classBase() + (systemC() ? "Sc" : "C"); }
+    string traceSourceBase() const { return m_traceFormat.sourceName(); }
+    string traceSourceLang() const {
+        return m_traceFormat.sourceName() + (systemC() ? "_sc" : "_c");
+    }
 
     // METHODS (from main)
     static string version();

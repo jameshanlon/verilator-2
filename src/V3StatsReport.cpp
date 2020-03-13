@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Collect and print statistics
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2005-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2005-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -248,5 +248,6 @@ void V3Stats::statsReport() {
     StatsReport reporter (ofp);
 
     // Cleanup
-    ofp->close(); delete ofp; VL_DANGLING(ofp);
+    ofp->close();
+    VL_DO_DANGLING(delete ofp, ofp);
 }

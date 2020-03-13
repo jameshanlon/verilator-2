@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Parse module/signal name references
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -86,12 +86,9 @@ class SliceVisitor : public AstNVisitor {
         AstNode* newp;
         if (AstInitArray* initp = VN_CAST(nodep, InitArray)) {
             UINFO(9,"  cloneInitArray("<<elements<<","<<offset<<") "<<nodep<<endl);
-            AstNode* itemp = initp->initsp();
             int leOffset = !arrayp->rangep()->littleEndian()
                 ? arrayp->rangep()->elementsConst()-1-offset : offset;
-            for (int pos = 0; itemp && pos < leOffset; ++pos) {
-                itemp = itemp->nextp();
-            }
+            AstNode* itemp = initp->getIndexDefaultedValuep(leOffset);
             if (!itemp) {
                 nodep->v3error("Array initialization has too few elements, need element "<<offset);
                 itemp = initp->initsp();
@@ -127,7 +124,7 @@ class SliceVisitor : public AstNVisitor {
         return newp;
     }
 
-    virtual void visit(AstNodeAssign* nodep) {
+    virtual void visit(AstNodeAssign* nodep) VL_OVERRIDE {
         // Called recursively on newly created assignments
         if (!nodep->user1()
             && !VN_IS(nodep, AssignAlias)) {
@@ -149,7 +146,7 @@ class SliceVisitor : public AstNVisitor {
                     newlistp = AstNode::addNextNull(newlistp, newp);
                 }
                 if (debug()>=9) { cout<<endl; nodep->dumpTree(cout, " Deslice-Dn: "); }
-                nodep->replaceWith(newlistp); nodep->deleteTree(); VL_DANGLING(nodep);
+                nodep->replaceWith(newlistp); VL_DO_DANGLING(nodep->deleteTree(), nodep);
                 // Normal edit iterator will now iterate on all of the expansion assignments
                 // This will potentially call this function again to resolve next level of slicing
                 return;
@@ -160,7 +157,7 @@ class SliceVisitor : public AstNVisitor {
         }
     }
 
-    virtual void visit(AstInitArray* nodep) {
+    virtual void visit(AstInitArray* nodep) VL_OVERRIDE {
         UASSERT_OBJ(!m_assignp, nodep,
                     "Array initialization should have been removed earlier");
     }
@@ -173,56 +170,66 @@ class SliceVisitor : public AstNVisitor {
             UINFO(9, "  Bi-Eq/Neq expansion "<<nodep<<endl);
             if (AstUnpackArrayDType* adtypep = VN_CAST(fromDtp, UnpackArrayDType)) {
                 AstNodeBiop* logp = NULL;
-                for (int index = 0; index < adtypep->rangep()->elementsConst(); ++index) {
-                    // EQ(a,b) -> LOGAND(EQ(ARRAYSEL(a,0), ARRAYSEL(b,0)), ...[1])
-                    AstNodeBiop* clonep
-                        = VN_CAST(nodep->cloneType
-                                  (new AstArraySel(nodep->fileline(),
-                                                   nodep->lhsp()->cloneTree(false),
-                                                   index),
-                                   new AstArraySel(nodep->fileline(),
-                                                   nodep->rhsp()->cloneTree(false),
-                                                   index)),
-                                  NodeBiop);
-                    if (!logp) logp = clonep;
-                    else {
-                        switch (nodep->type()) {
-                        case AstType::atEq:  // FALLTHRU
-                        case AstType::atEqCase:
-                            logp = new AstLogAnd(nodep->fileline(), logp, clonep);
-                            break;
-                        case AstType::atNeq:  // FALLTHRU
-                        case AstType::atNeqCase:
-                            logp = new AstLogOr(nodep->fileline(), logp, clonep);
-                            break;
-                        default:
-                            nodep->v3fatalSrc("Unknown node type processing array slice");
-                            break;
+                if (!VN_IS(nodep->lhsp()->dtypep()->skipRefp(), NodeArrayDType)) {
+                    nodep->lhsp()->v3error("Slice operator "<<nodep->lhsp()->prettyTypeName()
+                                           <<" on non-slicable (e.g. non-vector) left-hand-side operand");
+                }
+                else if (!VN_IS(nodep->rhsp()->dtypep()->skipRefp(), NodeArrayDType)) {
+                    nodep->rhsp()->v3error("Slice operator "<<nodep->rhsp()->prettyTypeName()
+                                           <<" on non-slicable (e.g. non-vector) right-hand-side operand");
+                }
+                else {
+                    for (int index = 0; index < adtypep->rangep()->elementsConst(); ++index) {
+                        // EQ(a,b) -> LOGAND(EQ(ARRAYSEL(a,0), ARRAYSEL(b,0)), ...[1])
+                        AstNodeBiop* clonep
+                            = VN_CAST(nodep->cloneType
+                                      (new AstArraySel(nodep->fileline(),
+                                                       nodep->lhsp()->cloneTree(false),
+                                                       index),
+                                       new AstArraySel(nodep->fileline(),
+                                                       nodep->rhsp()->cloneTree(false),
+                                                       index)),
+                                      NodeBiop);
+                        if (!logp) logp = clonep;
+                        else {
+                            switch (nodep->type()) {
+                            case AstType::atEq:  // FALLTHRU
+                            case AstType::atEqCase:
+                                logp = new AstLogAnd(nodep->fileline(), logp, clonep);
+                                break;
+                            case AstType::atNeq:  // FALLTHRU
+                            case AstType::atNeqCase:
+                                logp = new AstLogOr(nodep->fileline(), logp, clonep);
+                                break;
+                            default:
+                                nodep->v3fatalSrc("Unknown node type processing array slice");
+                                break;
+                            }
                         }
                     }
+                    UASSERT_OBJ(logp, nodep, "Unpacked array with empty indices range");
+                    nodep->replaceWith(logp);
+                    VL_DO_DANGLING(pushDeletep(nodep), nodep);
+                    nodep = logp;
                 }
-                UASSERT_OBJ(logp, nodep, "Unpacked array with empty indices range");
-                nodep->replaceWith(logp);
-                pushDeletep(nodep); VL_DANGLING(nodep);
-                nodep = logp;
             }
             iterateChildren(nodep);
         }
     }
-    virtual void visit(AstEq* nodep) {
+    virtual void visit(AstEq* nodep) VL_OVERRIDE {
         expandBiOp(nodep);
     }
-    virtual void visit(AstNeq* nodep) {
+    virtual void visit(AstNeq* nodep) VL_OVERRIDE {
         expandBiOp(nodep);
     }
-    virtual void visit(AstEqCase* nodep) {
+    virtual void visit(AstEqCase* nodep) VL_OVERRIDE {
         expandBiOp(nodep);
     }
-    virtual void visit(AstNeqCase* nodep) {
+    virtual void visit(AstNeqCase* nodep) VL_OVERRIDE {
         expandBiOp(nodep);
     }
 
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         // Default: Just iterate
         iterateChildren(nodep);
     }

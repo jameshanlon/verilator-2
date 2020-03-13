@@ -49,6 +49,9 @@ module t (clk);
    real         v_arr_real [2];
    string	v_string;
 
+   string       v_assoc[string];
+   initial v_assoc["key"] = "value";
+
    typedef struct packed {
       logic [31:0] data;
    } str32_t;
@@ -61,6 +64,13 @@ module t (clk);
    enumed_t v_enumed2;
    typedef enum logic [2:0] { BZERO=0, BONE, BTWO, BTHREE } enumb_t;
    enumb_t v_enumb;
+   typedef struct packed {
+      enumb_t a;
+      enumb_t b;
+   } enumb2_str_t;
+   enumb2_str_t v_enumb2_str;
+
+   logic [7:0] unpacked_array[-2:0];
 
    p #(.PARAM(2)) p2 ();
    p #(.PARAM(3)) p3 ();
@@ -80,6 +90,7 @@ module t (clk);
       v_enumed <= v_enumed + 1;
       v_enumed2 <= v_enumed2 + 2;
       v_enumb <= v_enumb - 1;
+      v_enumb2_str <= {v_enumb, v_enumb};
       for (integer b=3; b<=4; b++) begin
 	 v_arru[b] <= ~v_arru[b];
 	 v_arru_strp[b] <= ~v_arru_strp[b];

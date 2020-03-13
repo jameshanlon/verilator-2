@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Ast node structures
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -94,6 +94,15 @@ void AstNode::init() {
     m_user5Cnt = 0;
 }
 
+AstNode* AstNode::abovep() const {
+    // m_headtailp only valid at beginning or end of list
+    // Avoid supporting at other locations as would require walking
+    // list which is likely to cause performance issues.
+    UASSERT_OBJ(!m_nextp || firstAbovep(), this, "abovep() not allowed when in midlist");
+    const AstNode* firstp = firstAbovep() ? this : m_headtailp;
+    return firstp->backp();
+}
+
 string AstNode::encodeName(const string& namein) {
     // Encode signal name raw from parser, then not called again on same signal
     string out;
@@ -136,6 +145,9 @@ string AstNode::encodeNumber(vlsint64_t num) {
 
 string AstNode::nameProtect() const {
     return VIdProtect::protectIf(name(), protect());
+}
+string AstNode::origNameProtect() const {
+    return VIdProtect::protectIf(origName(), protect());
 }
 
 string AstNode::shortName() const {
@@ -853,10 +865,10 @@ AstNode* AstNode::iterateSubtreeReturnEdits(AstNVisitor& v) {
         // track, then delete it on completion
         AstBegin* tempp = new AstBegin(nodep->fileline(), "[EditWrapper]", nodep);
         {
-            tempp->stmtsp()->accept(v); VL_DANGLING(nodep);  // nodep to null as may be replaced
+            VL_DO_DANGLING(tempp->stmtsp()->accept(v), nodep);  // nodep to null as may be replaced
         }
         nodep = tempp->stmtsp()->unlinkFrBackWithNext();
-        tempp->deleteTree(); VL_DANGLING(tempp);
+        VL_DO_DANGLING(tempp->deleteTree(), tempp);
     } else {
         // Use back to determine who's pointing at us (IE assume new node
         // grafts into same place as old one)
@@ -868,7 +880,7 @@ AstNode* AstNode::iterateSubtreeReturnEdits(AstNVisitor& v) {
         else if (this->m_backp->m_nextp == this) nextnodepp = &(this->m_backp->m_nextp);
         UASSERT_OBJ(nextnodepp, this, "Node's back doesn't point to forward to node itself");
         {
-            nodep->accept(v); VL_DANGLING(nodep);  // nodep to null as may be replaced
+            VL_DO_DANGLING(nodep->accept(v), nodep);  // nodep to null as may be replaced
         }
         nodep = *nextnodepp;  // Grab new node from point where old was connected
     }
@@ -1098,7 +1110,13 @@ void AstNode::v3errorEndFatal(std::ostringstream& str) const {
 string AstNode::locationStr() const {
     string str = "... In instance ";
     const AstNode* backp = this;
+    int itmax = 10000;  // Max iterations before giving up on location search
     while (backp) {
+        if (--itmax < 0) {
+            // Likely some circular back link, and V3Ast is trying to report a low-level error
+            UINFO(1, "Ran out of iterations finding locationStr on " << backp << endl);
+            return "";
+        }
         const AstScope* scopep;
         if ((scopep = VN_CAST_CONST(backp, Scope))) {
             // The design is flattened and there are no useful scopes
@@ -1198,6 +1216,10 @@ AstNodeDType* AstNode::findLogicRangeDType(VNumRange range, int widthMin,
 AstBasicDType* AstNode::findInsertSameDType(AstBasicDType* nodep) {
     return v3Global.rootp()->typeTablep()
         ->findInsertSameDType(nodep);
+}
+AstNodeDType* AstNode::findVoidDType() const {
+    return v3Global.rootp()->typeTablep()
+        ->findVoidDType(fileline());
 }
 
 //######################################################################

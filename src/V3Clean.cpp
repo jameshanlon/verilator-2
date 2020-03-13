@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Add temporaries, such as for clean nodes
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -62,9 +62,9 @@ private:
 
     // Width resetting
     int  cppWidth(AstNode* nodep) {
-        if (nodep->width()<=VL_WORDSIZE) return VL_WORDSIZE;
-        else if (nodep->width()<=VL_QUADSIZE) return VL_QUADSIZE;
-        else return nodep->widthWords()*VL_WORDSIZE;
+        if (nodep->width() <= VL_IDATASIZE) return VL_IDATASIZE;
+        else if (nodep->width() <= VL_QUADSIZE) return VL_QUADSIZE;
+        else return nodep->widthWords() * VL_EDATASIZE;
     }
     void setCppWidth(AstNode* nodep) {
         nodep->user2(true);  // Don't resize it again
@@ -87,7 +87,12 @@ private:
     void computeCppWidth(AstNode* nodep) {
         if (!nodep->user2() && nodep->hasDType()) {
             if (VN_IS(nodep, Var) || VN_IS(nodep, NodeDType)  // Don't want to change variable widths!
-                || VN_IS(nodep->dtypep()->skipRefp(), UnpackArrayDType)) {  // Or arrays
+                || VN_IS(nodep->dtypep()->skipRefp(), AssocArrayDType)  // Or arrays
+                || VN_IS(nodep->dtypep()->skipRefp(), DynArrayDType)
+                || VN_IS(nodep->dtypep()->skipRefp(), ClassRefDType)
+                || VN_IS(nodep->dtypep()->skipRefp(), QueueDType)
+                || VN_IS(nodep->dtypep()->skipRefp(), UnpackArrayDType)
+                || VN_IS(nodep->dtypep()->skipRefp(), VoidDType)) {
             } else {
                 setCppWidth(nodep);
             }
@@ -110,8 +115,10 @@ private:
     }
     void setClean(AstNode* nodep, bool isClean) {
         computeCppWidth(nodep);  // Just to be sure it's in widthMin
-        bool wholeUint = ((nodep->widthMin() % VL_WORDSIZE) == 0);  // 32,64,...
-        setCleanState(nodep, ((isClean||wholeUint) ? CS_CLEAN:CS_DIRTY));
+        bool wholeUint = (nodep->widthMin() == VL_IDATASIZE
+                          || nodep->widthMin() == VL_QUADSIZE
+                          || (nodep->widthMin() % VL_EDATASIZE) == 0);
+        setCleanState(nodep, ((isClean || wholeUint) ? CS_CLEAN : CS_DIRTY));
     }
 
     // Operate on nodes
@@ -129,15 +136,15 @@ private:
         cleanp->dtypeFrom(nodep);  // Otherwise the AND normally picks LHS
         relinkHandle.relink(cleanp);
     }
-    void insureClean(AstNode* nodep) {
+    void ensureClean(AstNode* nodep) {
         computeCppWidth(nodep);
         if (!isClean(nodep)) insertClean(nodep);
     }
-    void insureCleanAndNext(AstNode* nodep) {
+    void ensureCleanAndNext(AstNode* nodep) {
         // Editing list, careful looping!
         for (AstNode* exprp = nodep; exprp; ) {
             AstNode* nextp = exprp->nextp();
-            insureClean(exprp);
+            ensureClean(exprp);
             exprp = nextp;
         }
     }
@@ -147,10 +154,10 @@ private:
         iterateChildren(nodep);
         computeCppWidth(nodep);
         if (nodep->cleanLhs()) {
-            insureClean(nodep->lhsp());
+            ensureClean(nodep->lhsp());
         }
         if (nodep->cleanRhs()) {
-            insureClean(nodep->rhsp());
+            ensureClean(nodep->rhsp());
         }
         //no setClean.. must do it in each user routine.
     }
@@ -158,70 +165,73 @@ private:
         iterateChildren(nodep);
         computeCppWidth(nodep);
         if (nodep->cleanLhs()) {
-            insureClean(nodep->lhsp());
+            ensureClean(nodep->lhsp());
         }
         if (nodep->cleanRhs()) {
-            insureClean(nodep->rhsp());
+            ensureClean(nodep->rhsp());
         }
         if (nodep->cleanThs()) {
-            insureClean(nodep->thsp());
+            ensureClean(nodep->thsp());
         }
         //no setClean.. must do it in each user routine.
     }
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep) {
-        m_modp = nodep;
-        iterateChildren(nodep);
-        m_modp = NULL;
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
+        AstNodeModule* origModp = m_modp;
+        {
+            m_modp = nodep;
+            iterateChildren(nodep);
+        }
+        m_modp = origModp;
     }
-    virtual void visit(AstNodeUniop* nodep) {
+    virtual void visit(AstNodeUniop* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         computeCppWidth(nodep);
         if (nodep->cleanLhs()) {
-            insureClean(nodep->lhsp());
+            ensureClean(nodep->lhsp());
         }
         setClean(nodep, nodep->cleanOut());
     }
-    virtual void visit(AstNodeBiop* nodep) {
+    virtual void visit(AstNodeBiop* nodep) VL_OVERRIDE {
         operandBiop(nodep);
         setClean(nodep, nodep->cleanOut());
     }
-    virtual void visit(AstAnd* nodep) {
+    virtual void visit(AstAnd* nodep) VL_OVERRIDE {
         operandBiop(nodep);
         setClean(nodep, isClean(nodep->lhsp()) || isClean(nodep->rhsp()));
     }
-    virtual void visit(AstXor* nodep) {
+    virtual void visit(AstXor* nodep) VL_OVERRIDE {
         operandBiop(nodep);
         setClean(nodep, isClean(nodep->lhsp()) && isClean(nodep->rhsp()));
     }
-    virtual void visit(AstOr* nodep) {
+    virtual void visit(AstOr* nodep) VL_OVERRIDE {
         operandBiop(nodep);
         setClean(nodep, isClean(nodep->lhsp()) && isClean(nodep->rhsp()));
     }
-    virtual void visit(AstNodeMath* nodep) {
+    virtual void visit(AstNodeMath* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         computeCppWidth(nodep);
         setClean(nodep, nodep->cleanOut());
     }
-    virtual void visit(AstNodeAssign* nodep) {
+    virtual void visit(AstNodeAssign* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         computeCppWidth(nodep);
         if (nodep->cleanRhs()) {
-            insureClean(nodep->rhsp());
+            ensureClean(nodep->rhsp());
         }
     }
-    virtual void visit(AstText* nodep) {
+    virtual void visit(AstText* nodep) VL_OVERRIDE {
         setClean(nodep, true);
     }
-    virtual void visit(AstScopeName* nodep) {
+    virtual void visit(AstScopeName* nodep) VL_OVERRIDE {
         setClean(nodep, true);
     }
-    virtual void visit(AstSel* nodep) {
+    virtual void visit(AstSel* nodep) VL_OVERRIDE {
         operandTriop(nodep);
         setClean(nodep, nodep->cleanOut());
     }
-    virtual void visit(AstUCFunc* nodep) {
+    virtual void visit(AstUCFunc* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         computeCppWidth(nodep);
         setClean(nodep, false);
@@ -229,57 +239,66 @@ private:
         if (!VN_IS(nodep->backp(), And)) {
             insertClean(nodep);
         }
-        insureCleanAndNext(nodep->bodysp());
+        ensureCleanAndNext(nodep->bodysp());
     }
-    virtual void visit(AstTraceDecl* nodep) {
+    virtual void visit(AstTraceDecl* nodep) VL_OVERRIDE {
         // No cleaning, or would loose pointer to enum
         iterateChildren(nodep);
     }
-    virtual void visit(AstTraceInc* nodep) {
+    virtual void visit(AstTraceInc* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureCleanAndNext(nodep->valuep());
+        ensureCleanAndNext(nodep->valuep());
     }
-    virtual void visit(AstTypedef* nodep) {
+    virtual void visit(AstTypedef* nodep) VL_OVERRIDE {
         // No cleaning, or would loose pointer to enum
         iterateChildren(nodep);
     }
-    virtual void visit(AstParamTypeDType* nodep) {
+    virtual void visit(AstParamTypeDType* nodep) VL_OVERRIDE {
         // No cleaning, or would loose pointer to enum
         iterateChildren(nodep);
     }
 
     // Control flow operators
-    virtual void visit(AstNodeCond* nodep) {
+    virtual void visit(AstNodeCond* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureClean(nodep->condp());
+        ensureClean(nodep->condp());
         setClean(nodep, isClean(nodep->expr1p()) && isClean(nodep->expr2p()));
     }
-    virtual void visit(AstWhile* nodep) {
+    virtual void visit(AstWhile* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureClean(nodep->condp());
+        ensureClean(nodep->condp());
     }
-    virtual void visit(AstNodeIf* nodep) {
+    virtual void visit(AstNodeIf* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureClean(nodep->condp());
+        ensureClean(nodep->condp());
     }
-    virtual void visit(AstSFormatF* nodep) {
+    virtual void visit(AstSFormatF* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureCleanAndNext(nodep->exprsp());
+        ensureCleanAndNext(nodep->exprsp());
         setClean(nodep, true);  // generates a string, so not relevant
     }
-    virtual void visit(AstUCStmt* nodep) {
+    virtual void visit(AstUCStmt* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureCleanAndNext(nodep->bodysp());
+        ensureCleanAndNext(nodep->bodysp());
     }
-    virtual void visit(AstCCall* nodep) {
+    virtual void visit(AstNodeCCall* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureCleanAndNext(nodep->argsp());
+        ensureCleanAndNext(nodep->argsp());
         setClean(nodep, true);
+    }
+    virtual void visit(AstCMethodHard* nodep) VL_OVERRIDE {
+        iterateChildren(nodep);
+        ensureCleanAndNext(nodep->pinsp());
+        setClean(nodep, true);
+    }
+    virtual void visit(AstIntfRef* nodep) VL_OVERRIDE {
+        iterateChildren(nodep);
+        setClean(nodep, true);  // generates a string, so not relevant
     }
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         computeCppWidth(nodep);
     }

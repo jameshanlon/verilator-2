@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -20,6 +20,7 @@
 //=============================================================================
 // SPDIFF_OFF
 
+#define __STDC_LIMIT_MACROS  // UINT64_MAX
 #include "verilatedos.h"
 #include "verilated.h"
 #include "verilated_fst_c.h"
@@ -31,6 +32,7 @@
 #endif
 
 // Include the GTKWave implementation directly
+#define FST_CONFIG_INCLUDE "fst_config.h"
 #include "gtkwave/fastlz.c"
 #include "gtkwave/fstapi.c"
 #include "gtkwave/lz4.c"
@@ -46,6 +48,7 @@
 #if defined(_WIN32) && !defined(__MINGW32__) && !defined(__CYGWIN__)
 # include <io.h>
 #else
+# include <stdint.h>
 # include <unistd.h>
 #endif
 
@@ -61,9 +64,12 @@ protected:
     vluint32_t m_code;  ///< Starting code number
     // CONSTRUCTORS
     VerilatedFstCallInfo(VerilatedFstCallback_t icb, VerilatedFstCallback_t fcb,
-                         VerilatedFstCallback_t changecb,
-                         void* ut, vluint32_t code)
-        : m_initcb(icb), m_fullcb(fcb), m_changecb(changecb), m_userthis(ut), m_code(code) {}
+                         VerilatedFstCallback_t changecb, void* ut)
+        : m_initcb(icb)
+        , m_fullcb(fcb)
+        , m_changecb(changecb)
+        , m_userthis(ut)
+        , m_code(1) {}
     ~VerilatedFstCallInfo() {}
 };
 
@@ -71,10 +77,11 @@ protected:
 // VerilatedFst
 
 VerilatedFst::VerilatedFst(void* fst)
-    : m_fst(fst),
-      m_fullDump(true),
-      m_scopeEscape('.') {
-    m_valueStrBuffer.reserve(64+1);  // Need enough room for quad
+    : m_fst(fst)
+    , m_fullDump(true)
+    , m_nextCode(1)
+    , m_scopeEscape('.') {
+    m_valueStrBuffer.reserve(64 + 1);  // Need enough room for quad
 }
 
 void VerilatedFst::open(const char* filename) VL_MT_UNSAFE {
@@ -85,10 +92,12 @@ void VerilatedFst::open(const char* filename) VL_MT_UNSAFE {
     fstWriterSetParallelMode(m_fst, 1);
 #endif
     m_curScope.clear();
+    m_nextCode = 1;
 
     for (vluint32_t ent = 0; ent< m_callbacks.size(); ++ent) {
         VerilatedFstCallInfo* cip = m_callbacks[ent];
-        cip->m_code = 1;
+        cip->m_code = m_nextCode;
+        // Initialize; callbacks will call decl* which update m_nextCode
         (cip->m_initcb)(this, cip->m_userthis, cip->m_code);
     }
 
@@ -115,9 +124,15 @@ void VerilatedFst::declDTypeEnum(int dtypenum, const char* name, vluint32_t elem
     m_local2fstdtype[dtypenum] = enumNum;
 }
 
-void VerilatedFst::declSymbol(vluint32_t code, const char* name,
-                              int dtypenum, fstVarDir vardir, fstVarType vartype,
-                              int arraynum, vluint32_t len) {
+void VerilatedFst::declSymbol(vluint32_t code, const char* name, int dtypenum, fstVarDir vardir,
+                              fstVarType vartype, bool array, int arraynum, vluint32_t len,
+                              vluint32_t bits) {
+
+    // Make sure deduplicate tracking increments for future declarations
+    int codesNeeded = 1 + int(bits / 32);
+    //Not supported: if (tri) codesNeeded *= 2;  // Space in change array for __en signals
+    m_nextCode = std::max(m_nextCode, code + codesNeeded);
+
     std::pair<Code2SymbolType::iterator, bool> p
         = m_code2symbol.insert(std::make_pair(code, static_cast<fstHandle>(NULL)));
     std::istringstream nameiss(name);
@@ -152,8 +167,7 @@ void VerilatedFst::declSymbol(vluint32_t code, const char* name,
 
     std::stringstream name_ss;
     name_ss << symbol_name;
-    if (arraynum >= 0)
-        name_ss << "(" << arraynum << ")";
+    if (array) name_ss << "(" << arraynum << ")";
     std::string name_str = name_ss.str();
 
     if (dtypenum > 0) {
@@ -171,17 +185,16 @@ void VerilatedFst::declSymbol(vluint32_t code, const char* name,
 //=============================================================================
 // Callbacks
 
-void VerilatedFst::addCallback(
-    VerilatedFstCallback_t initcb, VerilatedFstCallback_t fullcb,
-    VerilatedFstCallback_t changecb, void* userthis) VL_MT_UNSAFE_ONE {
+void VerilatedFst::addCallback(VerilatedFstCallback_t initcb, VerilatedFstCallback_t fullcb,
+                               VerilatedFstCallback_t changecb, void* userthis) VL_MT_UNSAFE_ONE {
     m_assertOne.check();
     if (VL_UNLIKELY(isOpen())) {
-        std::string msg = (std::string("Internal: ")+__FILE__+"::"+__FUNCTION__
-                           +" called with already open file");
-        VL_FATAL_MT(__FILE__,__LINE__,"",msg.c_str());
+        std::string msg = (std::string("Internal: ") + __FILE__ + "::" + __FUNCTION__
+                           + " called with already open file");
+        VL_FATAL_MT(__FILE__, __LINE__, "", msg.c_str());
     }
-    VerilatedFstCallInfo* vci = new VerilatedFstCallInfo(initcb, fullcb, changecb, userthis, 1);
-    m_callbacks.push_back(vci);
+    VerilatedFstCallInfo* cip = new VerilatedFstCallInfo(initcb, fullcb, changecb, userthis);
+    m_callbacks.push_back(cip);
 }
 
 //=============================================================================
@@ -190,7 +203,7 @@ void VerilatedFst::addCallback(
 void VerilatedFst::dump(vluint64_t timeui) {
     if (!isOpen()) return;
     if (VL_UNLIKELY(m_fullDump)) {
-        m_fullDump = false;  // No need for more full dumps
+        m_fullDump = false;  // No more need for next dump to be full
         for (vluint32_t ent = 0; ent< m_callbacks.size(); ++ent) {
             VerilatedFstCallInfo* cip = m_callbacks[ent];
             (cip->m_fullcb)(this, cip->m_userthis, cip->m_code);
@@ -202,51 +215,6 @@ void VerilatedFst::dump(vluint64_t timeui) {
         VerilatedFstCallInfo* cip = m_callbacks[ent];
         (cip->m_changecb)(this, cip->m_userthis, cip->m_code);
     }
-}
-
-//=============================================================================
-// Helpers
-
-char* VerilatedFst::word2Str(vluint32_t newval, int bits) {
-    // Constructor makes sure m_valueStrBuffer.reserve() > 32+1
-    char* s = m_valueStrBuffer.data();
-    for (int i = 0; i < bits; ++i) {
-        *s++ = '0' + ((newval>>(bits-i-1))&1);
-    }
-    *s = '\0';
-    return m_valueStrBuffer.data();
-}
-
-char* VerilatedFst::quad2Str(vluint64_t newval, int bits) {
-    // Constructor makes sure m_valueStrBuffer.reserve() > 64+1
-    char* s = m_valueStrBuffer.data();
-    for (int i = 0; i < bits; ++i) {
-        *s++ = '0' + ((newval>>(bits-i-1))&1);
-    }
-    *s = '\0';
-    return m_valueStrBuffer.data();
-}
-
-char* VerilatedFst::array2Str(const vluint32_t* newval, int bits) {
-    int bq = VL_BITWORD_I(bits), br = VL_BITBIT_I(bits);
-    m_valueStrBuffer.reserve(bits+1);
-    char* s = m_valueStrBuffer.data();
-    vluint32_t v = newval[bq];
-    for (int i = 0; i < br; ++i) {
-        *s++ = '0' + ((v>>(br-i-1))&1);
-    }
-    for (int w = bq-1; w >= 0; --w) {
-        v = newval[w];
-        for (int i = 28; i >= 0; i-=4) {
-            s[0] = '0' + ((v>>(i+3))&1);
-            s[1] = '0' + ((v>>(i+2))&1);
-            s[2] = '0' + ((v>>(i+1))&1);
-            s[3] = '0' + ((v>>(i+0))&1);
-            s+=4;
-        }
-    }
-    *s = '\0';
-    return m_valueStrBuffer.data();
 }
 
 //********************************************************************

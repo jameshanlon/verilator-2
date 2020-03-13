@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -67,7 +67,7 @@
 
 #define VL_COVER_INSERT(countp,args...) \
     VL_IF_COVER(VerilatedCov::_inserti(countp); \
-                VerilatedCov::_insertf(__FILE__,__LINE__);      \
+                VerilatedCov::_insertf(__FILE__, __LINE__); \
                 VerilatedCov::_insertp("hier", name(), args))
 
 //=============================================================================

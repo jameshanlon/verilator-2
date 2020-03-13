@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: File stream wrapper that understands indentation
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -25,6 +25,7 @@
 #include "V3File.h"
 #include "V3Os.h"
 #include "V3PreShell.h"
+#include "V3String.h"
 #include "V3Ast.h"
 
 #include <cerrno>
@@ -50,6 +51,10 @@
 
 #ifdef INFILTER_PIPE
 # include <sys/wait.h>
+#endif
+
+#if defined(_WIN32) || defined(__MINGW32__)
+# include <io.h>  // open, read, write, close
 #endif
 
 // If change this code, run a test with the below size set very small
@@ -223,7 +228,7 @@ inline bool V3FileDependImp::checkTimes(const string& filename, const string& cm
         return false;
     }
     {
-        string ignore = V3Os::getline(*ifp);
+        string ignore = V3Os::getline(*ifp);  if (ignore.empty()) { /*used*/ }
     }
     {
         char   chkDir;   *ifp>>chkDir;
@@ -307,7 +312,13 @@ void V3File::writeTimes(const string& filename, const string& cmdlineIn) {
 bool V3File::checkTimes(const string& filename, const string& cmdlineIn) {
     return dependImp.checkTimes(filename, cmdlineIn);
 }
-
+void V3File::createMakeDirFor(const string& filename) {
+    if (filename != VL_DEV_NULL
+        // If doesn't start with makeDir then some output file user requested
+        && filename.substr(0, v3Global.opt.makeDir().length()+1) == v3Global.opt.makeDir()+"/") {
+        createMakeDir();
+    }
+}
 void V3File::createMakeDir() {
     static bool created = false;
     if (!created) {
@@ -402,8 +413,7 @@ private:
                      || errno == EWOULDBLOCK
 #endif
                 ) {
-                // cppcheck-suppress obsoleteFunctionsusleep
-                checkFilter(false); usleep(1000); continue;
+                checkFilter(false); V3Os::u_sleep(1000); continue;
             } else { m_readEof = true; break; }
         }
         return out;
@@ -441,8 +451,7 @@ private:
                      || errno == EWOULDBLOCK
 #endif
                 ) {
-                // cppcheck-suppress obsoleteFunctionsusleep
-                checkFilter(false); usleep(1000); continue;
+                checkFilter(false); V3Os::u_sleep(1000); continue;
             }
             else break;
         }
@@ -488,7 +497,7 @@ private:
             execl("/bin/sh", "sh", "-c", command.c_str(), static_cast<char*>(NULL));
             // Don't use v3fatal, we don't share the common structures any more
             fprintf(stderr, "--pipe-filter: exec failed: %s\n", strerror(errno));
-            _exit(10);
+            _exit(1);
         }
         else {  // Parent
             UINFO(6,"In parent, child pid "<<pid
@@ -585,7 +594,7 @@ protected:
 // Just dispatch to the implementation
 
 VInFilter::VInFilter(const string& command) { m_impp = new VInFilterImp(command); }
-VInFilter::~VInFilter() { if (m_impp) delete m_impp; m_impp = NULL; }
+VInFilter::~VInFilter() { if (m_impp) VL_DO_CLEAR(delete m_impp, m_impp = NULL); }
 
 bool VInFilter::readWholefile(const string& filename, VInFilter::StrList& outl) {
     if (!m_impp) v3fatalSrc("readWholefile on invalid filter");
@@ -632,7 +641,7 @@ bool V3OutFormatter::tokenEnd(const char* cp) {
             || tokenStart(cp, "endmodule"));
 }
 
-int V3OutFormatter::endLevels(const char *strg) {
+int V3OutFormatter::endLevels(const char* strg) {
     int levels = m_indentLevel;
     {
         const char* cp = strg;
@@ -677,7 +686,7 @@ int V3OutFormatter::endLevels(const char *strg) {
     return levels;
 }
 
-void V3OutFormatter::puts(const char *strg) {
+void V3OutFormatter::puts(const char* strg) {
     if (m_prependIndent) {
         putsNoTracking(indentSpaces(endLevels(strg)));
         m_prependIndent = false;
@@ -905,7 +914,7 @@ string V3OutFormatter::quoteNameControls(const string& namein, V3OutFormatter::L
 //----------------------------------------------------------------------
 // Simple wrappers
 
-void V3OutFormatter::printf(const char *fmt...) {
+void V3OutFormatter::printf(const char* fmt...) {
     char sbuff[5000];
     va_list ap;
     va_start(ap, fmt);
@@ -934,6 +943,17 @@ void V3OutFile::putsForceIncs() {
     for (V3StringList::const_iterator it = forceIncs.begin(); it != forceIncs.end(); ++it) {
         puts("#include \""+*it+"\"\n");
     }
+}
+
+void V3OutCFile::putsGuard() {
+    UASSERT(!m_guard, "Already called putsGuard in emit file");
+    m_guard = true;
+    string var = VString::upcase(string("_") + V3Os::filenameNonDir(filename()) + "_");
+    for (string::iterator pos = var.begin(); pos != var.end(); ++pos) {
+        if (!isalnum(*pos)) *pos = '_';
+    }
+    puts("\n#ifndef " + var + "\n");
+    puts("#define " + var + "  // guard\n");
 }
 
 //######################################################################

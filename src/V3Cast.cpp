@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Add C++ casts across expression size changes
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2004-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -75,60 +75,60 @@ private:
         relinkHandle.relink(castp);
         //if (debug()>8) castp->dumpTree(cout, "-castins: ");
         //
-        insureLower32Cast(castp);
+        ensureLower32Cast(castp);
         nodep->user1(1);  // Now must be of known size
     }
     int castSize(AstNode* nodep) {
         if (nodep->isQuad()) return VL_QUADSIZE;
-        else if (nodep->width()<=8) return 8;
-        else if (nodep->width()<=16) return 16;
-        else return VL_WORDSIZE;
+        else if (nodep->width() <= 8) return 8;
+        else if (nodep->width() <= 16) return 16;
+        else return VL_IDATASIZE;
     }
-    void insureCast(AstNode* nodep) {
+    void ensureCast(AstNode* nodep) {
         if (castSize(nodep->backp()) != castSize(nodep)
             || !nodep->user1()) {
             insertCast(nodep, castSize(nodep->backp()));
         }
     }
-    void insureLower32Cast(AstCCast* nodep) {
+    void ensureLower32Cast(AstCCast* nodep) {
         // If we have uint64 = CAST(uint64(x)) then the upcasting
         // really needs to be CAST(uint64(CAST(uint32(x))).
         // Otherwise a (uint64)(a>b) would return wrong value, as
         // less than has nondeterministic signedness.
         if (nodep->isQuad() && !nodep->lhsp()->isQuad()
             && !VN_IS(nodep->lhsp(), CCast)) {
-            insertCast(nodep->lhsp(), VL_WORDSIZE);
+            insertCast(nodep->lhsp(), VL_IDATASIZE);
         }
     }
 
     // VISITORS
-    virtual void visit(AstNodeUniop* nodep) {
+    virtual void visit(AstNodeUniop* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         nodep->user1(nodep->lhsp()->user1());
-        if (nodep->sizeMattersLhs()) insureCast(nodep->lhsp());
+        if (nodep->sizeMattersLhs()) ensureCast(nodep->lhsp());
     }
-    virtual void visit(AstNodeBiop* nodep) {
+    virtual void visit(AstNodeBiop* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         nodep->user1(nodep->lhsp()->user1()
                     | nodep->rhsp()->user1());
-        if (nodep->sizeMattersLhs()) insureCast(nodep->lhsp());
-        if (nodep->sizeMattersRhs()) insureCast(nodep->rhsp());
+        if (nodep->sizeMattersLhs()) ensureCast(nodep->lhsp());
+        if (nodep->sizeMattersRhs()) ensureCast(nodep->rhsp());
     }
-    virtual void visit(AstNodeTriop* nodep) {
+    virtual void visit(AstNodeTriop* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         nodep->user1(nodep->lhsp()->user1()
                     | nodep->rhsp()->user1()
                     | nodep->thsp()->user1());
-        if (nodep->sizeMattersLhs()) insureCast(nodep->lhsp());
-        if (nodep->sizeMattersRhs()) insureCast(nodep->rhsp());
-        if (nodep->sizeMattersThs()) insureCast(nodep->thsp());
+        if (nodep->sizeMattersLhs()) ensureCast(nodep->lhsp());
+        if (nodep->sizeMattersRhs()) ensureCast(nodep->rhsp());
+        if (nodep->sizeMattersThs()) ensureCast(nodep->thsp());
     }
-    virtual void visit(AstCCast* nodep) {
+    virtual void visit(AstCCast* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
-        insureLower32Cast(nodep);
+        ensureLower32Cast(nodep);
         nodep->user1(1);
     }
-    virtual void visit(AstNegate* nodep) {
+    virtual void visit(AstNegate* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         nodep->user1(nodep->lhsp()->user1());
         if (nodep->lhsp()->widthMin()==1) {
@@ -137,10 +137,10 @@ private:
             //    out = {32{a<b}}  =>   out = - (a<b)
             insertCast(nodep->lhsp(), castSize(nodep));
         } else {
-            insureCast(nodep->lhsp());
+            ensureCast(nodep->lhsp());
         }
     }
-    virtual void visit(AstVarRef* nodep) {
+    virtual void visit(AstVarRef* nodep) VL_OVERRIDE {
         if (!nodep->lvalue()
             && !VN_IS(nodep->backp(), CCast)
             && VN_IS(nodep->backp(), NodeMath)
@@ -153,7 +153,7 @@ private:
         }
         nodep->user1(1);
     }
-    virtual void visit(AstConst* nodep) {
+    virtual void visit(AstConst* nodep) VL_OVERRIDE {
         // Constants are of unknown size if smaller than 33 bits, because
         // we're too lazy to wrap every constant in the universe in
         // ((IData)#).
@@ -161,11 +161,11 @@ private:
     }
 
     // NOPs
-    virtual void visit(AstVar* nodep) {}
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {}
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 

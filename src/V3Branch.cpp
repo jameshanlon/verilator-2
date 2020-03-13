@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Branch prediction
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -70,7 +70,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeIf* nodep) {
+    virtual void visit(AstNodeIf* nodep) VL_OVERRIDE {
         UINFO(4," IF: "<<nodep<<endl);
         int lastLikely = m_likely;
         int lastUnlikely = m_unlikely;
@@ -96,17 +96,17 @@ private:
         m_likely = lastLikely;
         m_unlikely = lastUnlikely;
     }
-    virtual void visit(AstCCall* nodep) {
+    virtual void visit(AstNodeCCall* nodep) VL_OVERRIDE {
         checkUnlikely(nodep);
         nodep->funcp()->user1Inc();
         iterateChildren(nodep);
     }
-    virtual void visit(AstCFunc* nodep) {
+    virtual void visit(AstCFunc* nodep) VL_OVERRIDE {
         checkUnlikely(nodep);
         m_cfuncsp.push_back(nodep);
         iterateChildren(nodep);
     }
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         checkUnlikely(nodep);
         iterateChildren(nodep);
     }

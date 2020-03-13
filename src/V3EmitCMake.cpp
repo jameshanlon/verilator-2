@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Emit CMake file list
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2004-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -125,8 +125,8 @@ class CMakeEmitter {
 
         *of << "\n### Sources...\n";
         std::vector<string> classes_fast, classes_slow, support_fast, support_slow, global;
-        for (AstFile* nodep = v3Global.rootp()->filesp(); nodep;
-             nodep = VN_CAST(nodep->nextp(), File)) {
+        for (AstNodeFile* nodep = v3Global.rootp()->filesp(); nodep;
+             nodep = VN_CAST(nodep->nextp(), NodeFile)) {
             AstCFile* cfilep = VN_CAST(nodep, CFile);
             if (cfilep && cfilep->source()) {
                 if (cfilep->support()) {
@@ -160,13 +160,13 @@ class CMakeEmitter {
         }
         if (v3Global.opt.trace()) {
             global.push_back("${VERILATOR_ROOT}/include/"
-                             + v3Global.opt.traceSourceName()+"_c.cpp");
+                             + v3Global.opt.traceSourceBase() + "_c.cpp");
             if (v3Global.opt.systemC()) {
                 if (v3Global.opt.traceFormat() != TraceFormat::VCD) {
                     v3error("Unsupported: This trace format is not supported in SystemC, use VCD format.");
                 }
                 global.push_back("${VERILATOR_ROOT}/include/"
-                                    + v3Global.opt.traceSourceName()+"_sc.cpp");
+                                    + v3Global.opt.traceSourceLang() + ".cpp");
             }
         }
         if (v3Global.opt.mtasks()) {

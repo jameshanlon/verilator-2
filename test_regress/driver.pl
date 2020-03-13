@@ -1,10 +1,9 @@
-: # -*-Mode: perl;-*- use perl, wherever it is
-eval 'exec perl -wS $0 ${1+"$@"}'
-  if 0;
+#!/usr/bin/env perl
 # See copyright, etc in below POD section.
 ######################################################################
 
 require 5.006_001;
+use warnings;
 use Cwd;
 BEGIN {
     if (!$ENV{VERILATOR_ROOT} && -x "../bin/verilator") {
@@ -67,6 +66,7 @@ my $opt_gdb;
 my $opt_rr;
 my $opt_gdbbt;
 my $opt_gdbsim;
+my $opt_hashset;
 my $opt_jobs = 1;
 my $opt_optimize;
 my $opt_quiet;
@@ -91,6 +91,7 @@ if (! GetOptions(
           "gdbbt!"      => \$opt_gdbbt,
           "gdbsim!"     => \$opt_gdbsim,
           "golden!"     => sub { $ENV{HARNESS_UPDATE_GOLDEN} = 1; },
+          "hashset=s"   => \$opt_hashset,
           "help"        => \&usage,
           "j=i"         => \$opt_jobs,
           "optimize:s"  => \$opt_optimize,
@@ -110,7 +111,7 @@ if (! GetOptions(
           "atsim|athdl!"=> sub { $opt_scenarios{atsim} = $_[1]; },
           "dist!"       => sub { $opt_scenarios{dist} = $_[1]; },
           "ghdl!"       => sub { $opt_scenarios{ghdl} = $_[1]; },
-          "iverilog!"   => sub { $opt_scenarios{iverilog} = $_[1]; },
+          "iv!"         => sub { $opt_scenarios{iv} = $_[1]; },
           "ms!"         => sub { $opt_scenarios{ms} = $_[1]; },
           "nc!"         => sub { $opt_scenarios{nc} = $_[1]; },
           "vlt!"        => sub { $opt_scenarios{vlt} = $_[1]; },
@@ -142,6 +143,8 @@ if ($#opt_tests<0) {  # Run everything
         push @opt_tests, sort(glob("${dir}/t_*.pl"));
     }
 }
+@opt_tests = _calc_hashset(@opt_tests) if $opt_hashset;
+
 if ($#opt_tests>=2 && $opt_jobs>=2) {
     # Without this tests such as t_debug_sigsegv_bt_bad.pl will occasionally
     # block on input and cause a SIGSTOP, then a "fg" was needed to resume testing.
@@ -262,6 +265,25 @@ sub calc_jobs {
     return $ok + 1;
 }
 
+sub _calc_hashset {
+    my @in = @_;
+    return @in if !$opt_hashset;
+    $opt_hashset =~ m!^(\d+)/(\d+)$!
+        or die "%Error: Need number/number format for --hashset: $opt_hashset\n";
+    my ($set, $nsets) = ($1, $2);
+    my @new;
+    foreach my $t (@opt_tests) {
+        my $checksum = do {
+            local $/;
+            unpack("%32W*", $t);
+        };
+        if (($set % $nsets) == ($checksum % $nsets)) {
+            push @new, $t;
+        }
+    }
+    return @new;
+}
+
 #######################################################################
 #######################################################################
 #######################################################################
@@ -366,7 +388,8 @@ sub wait_and_report {
     # Wait for all children to finish
     while ($::Fork->is_any_left) {
         $::Fork->poll;
-        if (time() - ($self->{_last_summary_time} || 0) >= 30) {
+        if ((time() - ($self->{_last_summary_time} || 0) >= 30)
+            && (!$opt_gdb && !$opt_gdbsim)) {  # Don't show for interactive gdb etc
             $self->print_summary(force=>1, show_running=>1);
         }
         Time::HiRes::usleep 100*1000;
@@ -407,7 +430,7 @@ sub print_summary {
                   @_);
     if (!$self->{quiet} || $params{force}
         || ($self->{left_cnt} < 5)
-        || time() - ($self->{_last_summary_time} || 0) >= 15) {
+        || (time() - ($self->{_last_summary_time} || 0) >= 15)) {  # Don't show for interactive gdb etc
         $self->{_last_summary_time} = time();
         print STDERR ("==SUMMARY: ".$self->sprint_summary."\n");
         if ($params{show_running}) {
@@ -565,7 +588,7 @@ sub new {
         ghdl_run_flags => [],
         # IV
         iv => 0,
-        iv_flags => [split(/\s+/,"+define+iverilog -o $self->{obj_dir}/simiv")],
+        iv_flags => [split(/\s+/,"+define+iverilog -g2012 -o $self->{obj_dir}/simiv")],
         iv_flags2 => [],  # Overridden in some sim files
         iv_pli => 0,  # need to use pli
         iv_run_flags => [],
@@ -584,6 +607,7 @@ sub new {
         ms => 0,
         ms_flags => [split(/\s+/,("-sv -work $self->{obj_dir}/work"))],
         ms_flags2 => [],  # Overridden in some sim files
+        ms_pli => 1,  # need to use pli
         ms_run_flags => [split(/\s+/,"-lib $self->{obj_dir}/work -c -do 'run -all;quit' ")],
         # XSim
         xsim => 0,
@@ -818,6 +842,10 @@ sub compile_vlt_flags {
     unshift @verilator_flags, "--debug-partition" if $param{vltmt};
     unshift @verilator_flags, "--make gmake" if $param{verilator_make_gmake};
     unshift @verilator_flags, "--make cmake" if $param{verilator_make_cmake};
+    unshift @verilator_flags, "--exe" if
+        $param{make_main} && $param{verilator_make_gmake};
+    unshift @verilator_flags, "../".$self->{main_filename} if
+        $param{make_main} && $param{verilator_make_gmake};
     if (defined $opt_optimize) {
         my $letters = "";
         if ($opt_optimize =~ /[a-zA-Z]/) {
@@ -1043,7 +1071,7 @@ sub compile {
                                 "-DTEST_VERBOSE=\"".($self->{verbose} ? 1 : 0)."\"",
                                 "-DTEST_SYSTEMC=\"" .($self->sc ? 1 : 0). "\"",
                                 "-DCMAKE_PREFIX_PATH=\"".(($ENV{SYSTEMC_INCLUDE}||$ENV{SYSTEMC}||'')."/..\""),
-                                "-DTEST_OPT_FAST=\"" . ($param{benchmark}?"-O2":"") . "\"",
+                                "-DTEST_OPT_FAST=\"" . ($param{benchmark} ? "-Os" : "") . "\"",
                                 "-DTEST_VERILATION=\"" . $::Opt_Verilation . "\"",
                         ]);
             return 1 if $self->errors || $self->skips || $self->unsupporteds;
@@ -1052,6 +1080,7 @@ sub compile {
         if (!$param{fails} && $param{verilator_make_gmake}) {
             $self->oprint("Running make (gmake)\n") if $self->{verbose};
             $self->_run(logfile => "$self->{obj_dir}/vlt_gcc.log",
+                        entering => "$self->{obj_dir}",
                         cmd => ["make",
                                 "-C ".$self->{obj_dir},
                                 "-f ".$::RealBin."/Makefile_obj",
@@ -1060,8 +1089,7 @@ sub compile {
                                 "TEST_OBJ_DIR=$self->{obj_dir}",
                                 "CPPFLAGS_DRIVER=-D".uc($self->{name}),
                                 ($self->{verbose} ? "CPPFLAGS_DRIVER2=-DTEST_VERBOSE=1":""),
-                                ($param{make_main}?"":"MAKE_MAIN=0"),
-                                ($param{benchmark}?"OPT_FAST=-O2":""),
+                                ($param{benchmark} ? "OPT_FAST=-Os" : ""),
                                 "$self->{VM_PREFIX}",  # bypass default rule, as we don't need archive
                                 ($param{make_flags}||""),
                         ]);
@@ -1148,11 +1176,16 @@ sub execute {
                     );
     }
     elsif ($param{ms}) {
+        my @pli_opt=();
+        if ($param{ms_pli}) {
+            unshift @pli_opt, "-pli $self->{obj_dir}/libvpi.so";
+        }
         $self->_run(logfile=>"$self->{obj_dir}/ms_sim.log",
                     fails=>$param{fails},
                     cmd=>["echo q | ".$run_env.($ENV{VERILATOR_MODELSIM}||"vsim"),
                           @{$param{ms_run_flags}},
                           @{$param{all_run_flags}},
+                          @{pli_opt},
                           (" top")
                           ],
                     %param,
@@ -1407,7 +1440,8 @@ sub run {
 }
 sub _run {
     my $self = (ref $_[0]? shift : $Self);
-    my %param = (tee=>1,
+    my %param = (tee => 1,
+                 #entering =>  # Print entering directory information
                  @_);
     my $command = join(' ',@{$param{cmd}});
     $command = "time $command" if $opt_benchmark && $command !~ /^cd /;
@@ -1429,6 +1463,8 @@ sub _run {
         my $pid=fork();
         if ($pid) {  # Parent
             close CHILDWR;
+            print "driver: Entering directory '",
+                File::Spec->rel2abs($param{entering}), "'\n" if $param{entering};
             while (1) {
                 my $buf = '';
                 my $got = sysread PARENTRD,$buf,10000;
@@ -1438,6 +1474,8 @@ sub _run {
             }
             close PARENTRD;
             close $logfh if $logfh;
+            print "driver: Leaving directory '",
+                File::Spec->rel2abs($param{entering}), "'\n" if $param{entering};
         }
         else {  # Child
             close PARENTRD;
@@ -1451,7 +1489,13 @@ sub _run {
             autoflush STDOUT 1;
             autoflush STDERR 1;
             system "$command";
-            exit($? ? 10 : 0);  # $?<<8 misses coredumps
+            my $status = $?;
+            if (($status & 127) == 4  # SIGILL
+                || ($status & 127) == 8  # SIGFPA
+                || ($status & 127) == 11) {  # SIGSEGV
+                $Self->error("Exec failed with core dump");
+            }
+            exit($? ? 10 : 0);  # $?>>8 misses coredumps
         }
         waitpid($pid,0);
         $status = $? || 0;
@@ -1462,7 +1506,7 @@ sub _run {
     if (!$param{fails} && $status) {
         my $firstline = "";
         if (my $fh = IO::File->new("<$param{logfile}")) {
-            $firstline = $fh->getline;
+            $firstline = $fh->getline || '';
             chomp $firstline;
         }
         $self->error("Exec of $param{cmd}[0] failed: $firstline\n");
@@ -1477,10 +1521,9 @@ sub _run {
 
     # Read the log file a couple of times to allow for NFS delays
     if ($param{check_finished} || $param{expect}) {
-        my $tries = $self->tries;
-        for (my $try=$tries-1; $try>=0; $try--) {
-            sleep 1 if ($try!=$tries-1);
-            my $moretry = $try!=0;
+        for (my $try = $self->tries - 1; $try >= 0; $try--) {
+            sleep 1 if ($try != $self->tries - 1);
+            my $moretry = $try != 0;
 
             my $fh = IO::File->new("<$param{logfile}");
             next if !$fh && $moretry;
@@ -1577,12 +1620,10 @@ sub _make_main {
     print $fh "#include \"verilated_vcd_sc.h\"\n" if $self->{trace} && $self->{trace_format} eq 'vcd-sc';
     print $fh "#include \"verilated_save.h\"\n" if $self->{savable};
 
-    print $fh "$VM_PREFIX * topp;\n";
+    print $fh "$VM_PREFIX* topp;\n";
     if (!$self->sc) {
         print $fh "vluint64_t main_time = false;\n";
-        print $fh "double sc_time_stamp() {\n";
-        print $fh "    return main_time;\n";
-        print $fh "}\n";
+        print $fh "double sc_time_stamp() { return main_time; }\n";
     }
 
     if ($self->{savable}) {
@@ -1608,13 +1649,13 @@ sub _make_main {
 
     #### Main
     if ($self->sc) {
-        print $fh "extern int sc_main(int argc, char **argv);\n";
-        print $fh "int sc_main(int argc, char **argv) {\n";
+        print $fh "extern int sc_main(int argc, char** argv);\n";
+        print $fh "int sc_main(int argc, char** argv) {\n";
         print $fh "    sc_signal<bool> fastclk;\n" if $self->{inputs}{fastclk};
         print $fh "    sc_signal<bool> clk;\n"  if $self->{inputs}{clk};
         print $fh "    sc_time sim_time($self->{sim_time}, SC_NS);\n";
     } else {
-        print $fh "int main(int argc, char **argv, char **env) {\n";
+        print $fh "int main(int argc, char** argv, char** env) {\n";
         print $fh "    double sim_time = $self->{sim_time};\n";
     }
     print $fh "    Verilated::commandArgs(argc, argv);\n";
@@ -1690,7 +1731,7 @@ sub _make_main {
     }
     print $fh "    }\n";
     print $fh "    if (!Verilated::gotFinish()) {\n";
-    print $fh '       vl_fatal(__FILE__,__LINE__,"main", "%Error: Timeout; never got a $finish");',"\n";
+    print $fh '        vl_fatal(__FILE__, __LINE__, "main", "%Error: Timeout; never got a $finish");',"\n";
     print $fh "    }\n";
     print $fh "    topp->final();\n";
 
@@ -1706,7 +1747,7 @@ sub _make_main {
     }
     $fh->print("\n");
 
-    print $fh "    delete topp; topp=NULL;\n";
+    print $fh "    VL_DO_DANGLING(delete topp, topp);\n";
     print $fh "    exit(0L);\n";
     print $fh "}\n";
     $fh->close();
@@ -1724,7 +1765,7 @@ sub _print_advance_time {
 
     if ($self->sc) {
         print $fh "#if (SYSTEMC_VERSION>=20070314)\n";
-        print $fh "        sc_start(${time},SC_NS);\n";
+        print $fh "        sc_start(${time}, SC_NS);\n";
         print $fh "#else\n";
         print $fh "        sc_start(${time});\n";
         print $fh "#endif\n";
@@ -1930,11 +1971,10 @@ sub files_identical {
     my $fn1_is_logfile = shift;
     return 1 if $self->errors || $self->skips || $self->unsupporteds;
 
-    my $tries = $self->tries;
   try:
-    for (my $try=$tries-1; $try>=0; $try--) {
-        sleep 1 if ($try!=$tries-1);
-        my $moretry = $try!=0;
+    for (my $try = $self->tries - 1; $try >= 0; $try--) {
+        sleep 1 if ($try != $self->tries - 1);
+        my $moretry = $try != 0;
 
         my $f1 = IO::File->new("<$fn1");
         my $f2 = IO::File->new("<$fn2");
@@ -1956,6 +1996,11 @@ sub files_identical {
                     && !/^- [a-z.0-9]+:\d+:[^\n]+\n/
                     && !/^-node:/
                     && !/^dot [^\n]+\n/
+            } @l1;
+            @l1 = map {
+                s/(Internal Error: [^\n]+\.cpp):[0-9]+:/$1:#:/;
+                s/^-V\{t[0-9]+,[0-9]+\}/-V{t#,#}/;  # --vlt vs --vltmt run differences
+                $_;
             } @l1;
             for (my $l=0; $l<=$#l1; ++$l) {
                 # Don't put control chars into our source repository
@@ -1989,6 +2034,17 @@ sub files_identical {
     }
 }
 
+sub copy_if_golden {
+    my $self = (ref $_[0]? shift : $Self);
+    my $fn1 = shift;
+    my $fn2 = shift;
+    if ($ENV{HARNESS_UPDATE_GOLDEN}) {  # Update golden files with current
+        warn "%Warning: HARNESS_UPDATE_GOLDEN set: cp $fn1 $fn2\n";
+        eval "use File::Copy;";
+        File::Copy::copy($fn1, $fn2);
+    }
+}
+
 sub vcd_identical {
     my $self = (ref $_[0]? shift : $Self);
     my $fn1 = shift;
@@ -2009,11 +2065,7 @@ sub vcd_identical {
         if ($out ne '') {
             print $out;
             $self->error("VCD miscompare $fn1 $fn2\n");
-            if ($ENV{HARNESS_UPDATE_GOLDEN}) {  # Update golden files with current
-                warn "%Warning: HARNESS_UPDATE_GOLDEN set: cp $fn1 $fn2\n";
-                eval "use File::Copy;";
-                File::Copy::copy($fn1,$fn2);
-            }
+            $self->copy_if_golden($fn1, $fn2);
             return 0;
         }
     }
@@ -2028,11 +2080,7 @@ sub vcd_identical {
         if ($a ne $b) {
             print "$a\n$b\n" if $::Debug;
             $self->error("VCD hier mismatch $fn1 $fn2\n");
-            if ($ENV{HARNESS_UPDATE_GOLDEN}) {  # Update golden files with current
-                warn "%Warning: HARNESS_UPDATE_GOLDEN set: cp $fn1 $fn2\n";
-                eval "use File::Copy;";
-                File::Copy::copy($fn1,$fn2);
-            }
+            $self->copy_if_golden($fn1, $fn2);
             return 0;
         }
     }
@@ -2050,9 +2098,18 @@ sub fst2vcd {
     if (!$out || $out !~ /Usage:/) { $self->skip("No fst2vcd installed\n"); return 1; }
 
     $cmd = qq{fst2vcd -e "$fn1" -o "$fn2"};
-    print "\t$cmd\n" if $::Debug;
+    print "\t$cmd\n";  # Always print to help debug race cases
     $out = `$cmd`;
     return 1;
+}
+
+sub fst_identical {
+    my $self = (ref $_[0]? shift : $Self);
+    my $fn1 = shift;
+    my $fn2 = shift;
+    my $tmp = $fn1.".vcd";
+    fst2vcd($fn1, $tmp);
+    return vcd_identical($tmp, $fn2);
 }
 
 sub _vcd_read {
@@ -2469,6 +2526,11 @@ Run Verilator generated executable under the debugger.
 
 Update golden files, equivalent to setting HARNESS_UPDATE_GOLDEN=1.
 
+=item --hashset I<set>/I<numsets>
+
+Split tests based on a hash of the test names into I<numsets> and run only
+tests in set number I<set> (0..I<numsets>-1).
+
 =item --help
 
 Displays this message and program version and exits.
@@ -2627,9 +2689,9 @@ Command to use to invoke XSim xvlog
 
 =head1 DISTRIBUTION
 
-The latest version is available from L<http://www.veripool.org/>.
+The latest version is available from L<https://verilator.org>.
 
-Copyright 2003-2019 by Wilson Snyder.  Verilator is free software; you can
+Copyright 2003-2020 by Wilson Snyder.  Verilator is free software; you can
 redistribute it and/or modify it under the terms of either the GNU Lesser
 General Public License Version 3 or the Perl Artistic License Version 2.0.
 

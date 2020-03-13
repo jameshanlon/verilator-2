@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Add temporaries, such as for inst nodes
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -54,7 +54,7 @@ private:
     VL_DEBUG_FUNC;  // Declare debug()
 
     // VISITORS
-    virtual void visit(AstCell* nodep) {
+    virtual void visit(AstCell* nodep) VL_OVERRIDE {
         UINFO(4,"  CELL   "<<nodep<<endl);
         m_cellp = nodep;
         //VV*****  We reset user1p() on each cell!!!
@@ -62,7 +62,7 @@ private:
         iterateChildren(nodep);
         m_cellp = NULL;
     }
-    virtual void visit(AstPin* nodep) {
+    virtual void visit(AstPin* nodep) VL_OVERRIDE {
         // PIN(p,expr) -> ASSIGNW(VARXREF(p),expr)    (if sub's input)
         //            or  ASSIGNW(expr,VARXREF(p))    (if sub's output)
         UINFO(4,"   PIN  "<<nodep<<endl);
@@ -113,10 +113,10 @@ private:
         }
 
         // We're done with the pin
-        nodep->unlinkFrBack()->deleteTree(); VL_DANGLING(nodep);
+        VL_DO_DANGLING(nodep->unlinkFrBack()->deleteTree(), nodep);
     }
 
-    virtual void visit(AstUdpTable* nodep) {
+    virtual void visit(AstUdpTable* nodep) VL_OVERRIDE {
         if (!v3Global.opt.bboxUnsup()) {
             // If we support primitives, update V3Undriven to remove special case
             nodep->v3error("Unsupported: Verilog 1995 UDP Tables.  Use --bbox-unsup to ignore tables.");
@@ -124,13 +124,13 @@ private:
     }
 
     // Save some time
-    virtual void visit(AstNodeMath*) {}
-    virtual void visit(AstNodeAssign*) {}
-    virtual void visit(AstAlways*) {}
+    virtual void visit(AstNodeMath*) VL_OVERRIDE {}
+    virtual void visit(AstNodeAssign*) VL_OVERRIDE {}
+    virtual void visit(AstAlways*) VL_OVERRIDE {}
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 public:
@@ -155,7 +155,7 @@ private:
     VL_DEBUG_FUNC;  // Declare debug()
 
     // VISITORS
-    virtual void visit(AstVar* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {
         if (VN_IS(nodep->dtypep(), IfaceRefDType)) {
             UINFO(8,"   dm-1-VAR    "<<nodep<<endl);
             insert(nodep);
@@ -163,9 +163,9 @@ private:
         iterateChildren(nodep);
     }
     // Save some time
-    virtual void visit(AstNodeMath*) {}
+    virtual void visit(AstNodeMath*) VL_OVERRIDE {}
     // Default: Just iterate
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 public:
@@ -213,7 +213,7 @@ private:
     VL_DEBUG_FUNC;  // Declare debug()
 
     // VISITORS
-    virtual void visit(AstVar* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {
         if (VN_IS(nodep->dtypep(), UnpackArrayDType)
             && VN_IS(VN_CAST(nodep->dtypep(), UnpackArrayDType)->subDTypep(), IfaceRefDType)) {
             UINFO(8,"   dv-vec-VAR    "<<nodep<<endl);
@@ -246,7 +246,7 @@ private:
         iterateChildren(nodep);
     }
 
-    virtual void visit(AstCell* nodep) {
+    virtual void visit(AstCell* nodep) VL_OVERRIDE {
         UINFO(4,"  CELL   "<<nodep<<endl);
         // Find submodule vars
         UASSERT_OBJ(nodep->modp(), nodep, "Unlinked");
@@ -303,16 +303,17 @@ private:
             // Done.  Delete original
             m_cellRangep = NULL;
             if (isIface) {
-                ifaceVarp->unlinkFrBack(); pushDeletep(ifaceVarp); VL_DANGLING(ifaceVarp);
+                ifaceVarp->unlinkFrBack();
+                VL_DO_DANGLING(pushDeletep(ifaceVarp), ifaceVarp);
             }
-            nodep->unlinkFrBack(); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->unlinkFrBack(); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         } else {
             m_cellRangep = NULL;
             iterateChildren(nodep);
         }
     }
 
-    virtual void visit(AstPin* nodep) {
+    virtual void visit(AstPin* nodep) VL_OVERRIDE {
         // Any non-direct pins need reconnection with a part-select
         if (!nodep->exprp()) return;  // No-connect
         if (m_cellRangep) {
@@ -328,8 +329,11 @@ private:
                   <<"  pd="<<pinDim.first<<","<<pinDim.second<<endl);
             if (expDim.first == pinDim.first && expDim.second == pinDim.second+1) {
                 // Connection to array, where array dimensions match the instant dimension
+                AstRange* rangep = VN_CAST(nodep->exprp()->dtypep(), UnpackArrayDType)->rangep();
+                int arraySelNum = rangep->littleEndian()
+                    ? (rangep->elementsConst() - 1 - m_instSelNum) : m_instSelNum;
                 AstNode* exprp = nodep->exprp()->unlinkFrBack();
-                exprp = new AstArraySel(exprp->fileline(), exprp, m_instSelNum);
+                exprp = new AstArraySel(exprp->fileline(), exprp, arraySelNum);
                 nodep->exprp(exprp);
             } else if (expwidth == pinwidth) {
                 // NOP: Arrayed instants: widths match so connect to each instance
@@ -376,7 +380,7 @@ private:
                 newp->dtypep(nodep->modVarp()->dtypep());
                 newp->packagep(varrefp->packagep());
                 arrselp->addNextHere(newp);
-                arrselp->unlinkFrBack()->deleteTree();
+                VL_DO_DANGLING(arrselp->unlinkFrBack()->deleteTree(), arrselp);
             }
         } else {
             AstVar* pinVarp = nodep->modVarp();
@@ -443,10 +447,10 @@ private:
     }
 
     // Save some time
-    virtual void visit(AstNodeMath*) {}
+    virtual void visit(AstNodeMath*) VL_OVERRIDE {}
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 public:

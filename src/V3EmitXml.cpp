@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Emit Verilog from tree
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2004-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -71,6 +71,7 @@ class EmitXmlFileVisitor : public AstNVisitor {
     void outputTag(AstNode* nodep, string tag) {
         if (tag=="") tag = VString::downcase(nodep->typeName());
         puts("<"+tag+" "+nodep->fileline()->xml());
+        puts(" "+nodep->fileline()->xmlDetailedLocation());
         if (VN_IS(nodep, NodeDType)) { puts(" id="); outputId(nodep); }
         if (nodep->name()!="") { puts(" name="); putsQuoted(nodep->prettyName()); }
         if (nodep->tag()!="") { puts(" tag="); putsQuoted(nodep->tag()); }
@@ -94,29 +95,30 @@ class EmitXmlFileVisitor : public AstNVisitor {
     }
 
     // VISITORS
-    virtual void visit(AstAssignW* nodep) {
+    virtual void visit(AstAssignW* nodep) VL_OVERRIDE {
         outputTag(nodep, "contassign");  // IEEE: vpiContAssign
         outputChildrenEnd(nodep, "contassign");
     }
-    virtual void visit(AstCell* nodep) {
+    virtual void visit(AstCell* nodep) VL_OVERRIDE {
         outputTag(nodep, "instance");  // IEEE: vpiInstance
         puts(" defName="); putsQuoted(nodep->modName());  // IEEE vpiDefName
         puts(" origName="); putsQuoted(nodep->origName());
         outputChildrenEnd(nodep, "instance");
     }
-    virtual void visit(AstNetlist* nodep) {
+    virtual void visit(AstNetlist* nodep) VL_OVERRIDE {
         puts("<netlist>\n");
         iterateChildren(nodep);
         puts("</netlist>\n");
     }
-    virtual void visit(AstNodeModule* nodep) {
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" origName="); putsQuoted(nodep->origName());
         if (nodep->level()==1 || nodep->level()==2)  // ==2 because we don't add wrapper when in XML mode
             puts(" topModule=\"1\"");  // IEEE vpiTopModule
+        if (nodep->modPublic()) puts(" public=\"true\"");
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstVar* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {
         AstVarType typ = nodep->varType();
         string kw = nodep->verilogKwd();
         string vt = nodep->dtypep()->name();
@@ -129,9 +131,24 @@ class EmitXmlFileVisitor : public AstNVisitor {
             puts(" vartype="); putsQuoted(!vt.empty() ? vt : kw);
         }
         puts(" origName="); putsQuoted(nodep->origName());
+        // Attributes
+        if (nodep->attrClocker() == VVarAttrClocker::CLOCKER_YES)
+            puts(" clocker=\"true\"");
+        else if (nodep->attrClocker() == VVarAttrClocker::CLOCKER_NO)
+            puts(" clocker=\"false\"");
+        if (nodep->attrClockEn()) puts(" clock_enable=\"true\"");
+        if (nodep->attrIsolateAssign()) puts(" isolate_assignments=\"true\"");
+        if (nodep->isSigPublic()) puts(" public=\"true\"");
+        if (nodep->isSigUserRdPublic()) puts(" public_flat_rd=\"true\"");
+        if (nodep->isSigUserRWPublic()) puts(" public_flat_rw=\"true\"");
+        if (nodep->isGParam()) puts(" param=\"true\"");
+        else if (nodep->isParam()) puts(" localparam=\"true\"");
+        if (nodep->attrScBv()) puts(" sc_bv=\"true\"");
+        if (nodep->attrScClocked()) puts(" sc_clock=\"true\"");
+        if (nodep->attrSFormat()) puts(" sformat=\"true\"");
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstPin* nodep) {
+    virtual void visit(AstPin* nodep) VL_OVERRIDE {
         // What we call a pin in verilator is a port in the IEEE spec.
         outputTag(nodep, "port");  // IEEE: vpiPort
         if (nodep->modVarp()->isIO()) {
@@ -141,26 +158,26 @@ class EmitXmlFileVisitor : public AstNVisitor {
         // Children includes vpiHighConn and vpiLowConn; we don't support port bits (yet?)
         outputChildrenEnd(nodep, "port");
     }
-    virtual void visit(AstSenItem* nodep) {
+    virtual void visit(AstSenItem* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" edgeType=\""+cvtToStr(nodep->edgeType().ascii())+"\"");  // IEEE vpiTopModule
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstModportVarRef* nodep) {
+    virtual void visit(AstModportVarRef* nodep) VL_OVERRIDE {
         // Dump direction for Modport references
         string kw = nodep->direction().xmlKwd();
         outputTag(nodep, "");
         puts(" direction="); putsQuoted(kw);
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstVarXRef* nodep) {
+    virtual void visit(AstVarXRef* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" dotted="); putsQuoted(nodep->dotted());
         outputChildrenEnd(nodep, "");
     }
 
     // Data types
-    virtual void visit(AstBasicDType* nodep) {
+    virtual void visit(AstBasicDType* nodep) VL_OVERRIDE {
         outputTag(nodep, "basicdtype");
         if (nodep->isRanged()) {
             puts(" left=\""+cvtToStr(nodep->left())+"\"");
@@ -168,30 +185,30 @@ class EmitXmlFileVisitor : public AstNVisitor {
         }
         puts("/>\n");
     }
-    virtual void visit(AstIfaceRefDType* nodep) {
+    virtual void visit(AstIfaceRefDType* nodep) VL_OVERRIDE {
         string mpn;
         outputTag(nodep, "");
         if (nodep->isModport()) mpn = nodep->modportName();
         puts(" modportname="); putsQuoted(mpn);
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstDisplay* nodep) {
+    virtual void visit(AstDisplay* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" displaytype="); putsQuoted(nodep->verilogKwd());
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstElabDisplay* nodep) {
+    virtual void visit(AstElabDisplay* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" displaytype="); putsQuoted(nodep->verilogKwd());
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstExtend* nodep) {
+    virtual void visit(AstExtend* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" width="); putsQuoted(cvtToStr(nodep->width()));
         puts(" widthminv="); putsQuoted(cvtToStr(nodep->lhsp()->widthMinV()));
         outputChildrenEnd(nodep, "");
     }
-    virtual void visit(AstExtendS* nodep) {
+    virtual void visit(AstExtendS* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         puts(" width="); putsQuoted(cvtToStr(nodep->width()));
         puts(" widthminv="); putsQuoted(cvtToStr(nodep->lhsp()->widthMinV()));
@@ -199,7 +216,7 @@ class EmitXmlFileVisitor : public AstNVisitor {
     }
 
     // Default
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         outputTag(nodep, "");
         outputChildrenEnd(nodep, "");
     }
@@ -226,11 +243,11 @@ private:
     VL_DEBUG_FUNC;  // Declare debug()
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep) {
+    virtual void visit(AstNetlist* nodep) VL_OVERRIDE {
         // Children are iterated backwards to ensure correct compilation order
         iterateChildrenBackwards(nodep);
     }
-    virtual void visit(AstNodeModule* nodep) {
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
         // Only list modules and interfaces
         // Assumes modules and interfaces list is already sorted level wise
         if (!nodep->dead()
@@ -240,7 +257,7 @@ private:
         }
     }
     //-----
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         // All modules are present at root so no need to iterate on children
     }
 
@@ -253,7 +270,7 @@ public:
         // Xml output
         m_os<<"<module_files>\n";
         for (std::deque<FileLine*>::iterator it = m_nodeModules.begin();
-                it != m_nodeModules.end(); it++) {
+                it != m_nodeModules.end(); ++it) {
             m_os<<"<file id=\""<<(*it)->filenameLetters()
                 <<"\" filename=\""<<(*it)->filename()
                 <<"\" language=\""<<(*it)->language().ascii()<<"\"/>\n";
@@ -277,11 +294,12 @@ private:
     VL_DEBUG_FUNC;  // Declare debug()
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep) {
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
         if (nodep->level() >= 0
             && nodep->level() <=2 ) {  // ==2 because we don't add wrapper when in XML mode
             m_os<<"<cells>\n";
             m_os<<"<cell "<<nodep->fileline()->xml()
+                <<" "<<nodep->fileline()->xmlDetailedLocation()
                 <<" name=\""<<nodep->name()<<"\""
                 <<" submodname=\""<<nodep->name()<<"\""
                 <<" hier=\""<<nodep->name()<<"\"";
@@ -296,12 +314,13 @@ private:
             m_os<<"</cells>\n";
         }
     }
-    virtual void visit(AstCell* nodep) {
+    virtual void visit(AstCell* nodep) VL_OVERRIDE {
         if (nodep->modp()->dead()) {
             return;
         }
         if (!m_hasChildren) m_os<<">\n";
         m_os<<"<cell "<<nodep->fileline()->xml()
+            <<" "<<nodep->fileline()->xmlDetailedLocation()
             <<" name=\""<<nodep->name()<<"\""
             <<" submodname=\""<<nodep->modName()<<"\""
             <<" hier=\""<<m_hier+nodep->name()<<"\"";
@@ -318,7 +337,7 @@ private:
         m_hasChildren = true;
     }
     //-----
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 
@@ -338,7 +357,10 @@ public:
 void V3EmitXml::emitxml() {
     UINFO(2,__FUNCTION__<<": "<<endl);
     // All-in-one file
-    V3OutXmlFile of (v3Global.opt.makeDir()+"/"+v3Global.opt.prefix()+".xml");
+    string filename = (v3Global.opt.xmlOutput().empty()
+                       ? v3Global.opt.makeDir()+"/"+v3Global.opt.prefix()+".xml"
+                       : v3Global.opt.xmlOutput());
+    V3OutXmlFile of(filename);
     of.putsHeader();
     of.puts("<!-- DESCR" "IPTION: Verilator output: XML representation of netlist -->\n");
     of.puts("<verilator_xml>\n");

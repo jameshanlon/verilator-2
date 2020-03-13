@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Hashed common code into functions
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -88,10 +88,10 @@ private:
 
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstVar*) {}
-    virtual void visit(AstTypedef*) {}
-    virtual void visit(AstParamTypeDType*) {}
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstVar*) VL_OVERRIDE {}
+    virtual void visit(AstTypedef*) VL_OVERRIDE {}
+    virtual void visit(AstParamTypeDType*) VL_OVERRIDE {}
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         nodeHashIterate(nodep);
     }
 

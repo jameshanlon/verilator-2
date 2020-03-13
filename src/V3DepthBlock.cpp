@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Prevent very deep expressions
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -71,14 +71,17 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNodeModule* nodep) {
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
         UINFO(4," MOD   "<<nodep<<endl);
-        m_modp = nodep;
-        m_deepNum = 0;
-        iterateChildren(nodep);
-        m_modp = NULL;
+        AstNodeModule* origModp = m_modp;
+        {
+            m_modp = nodep;
+            m_deepNum = 0;
+            iterateChildren(nodep);
+        }
+        m_modp = origModp;
     }
-    virtual void visit(AstCFunc* nodep) {
+    virtual void visit(AstCFunc* nodep) VL_OVERRIDE {
         // We recurse into this.
         int lastDepth = m_depth;
         AstCFunc* lastFuncp = m_funcp;
@@ -93,7 +96,7 @@ private:
     void visitStmt(AstNodeStmt* nodep) {
         m_depth++;
         if (m_depth > v3Global.opt.compLimitBlocks()
-            && !VN_IS(nodep, CCall)) {  // Already done
+            && !VN_IS(nodep, NodeCCall)) {  // Already done
             UINFO(4, "DeepBlocks "<<m_depth<<" "<<nodep<<endl);
             AstNode* backp = nodep->backp();  // Only for debug
             if (debug()>=9) backp->dumpTree(cout, "-   pre : ");
@@ -106,7 +109,7 @@ private:
         }
         m_depth--;
     }
-    virtual void visit(AstNodeStmt* nodep) {
+    virtual void visit(AstNodeStmt* nodep) VL_OVERRIDE {
         if (!nodep->isStatement()) {
             iterateChildren(nodep);
         } else {
@@ -114,11 +117,11 @@ private:
         }
     }
 
-    virtual void visit(AstNodeMath* nodep) {}  // Accelerate
+    virtual void visit(AstNodeMath* nodep) VL_OVERRIDE {}  // Accelerate
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstVar* nodep) {}  // Don't hit varrefs under vars
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {}  // Don't hit varrefs under vars
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 

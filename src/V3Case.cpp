@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Break case statements up and add Unknown assigns
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -62,7 +62,7 @@ private:
     // METHODS
     VL_DEBUG_FUNC;  // Declare debug()
 
-    virtual void visit(AstNodeCase* nodep) {
+    virtual void visit(AstNodeCase* nodep) VL_OVERRIDE {
         if (VN_IS(nodep, Case) && VN_CAST(nodep, Case)->casex()) {
             nodep->v3warn(CASEX, "Suggest casez (with ?'s) in place of casex (with X's)");
         }
@@ -89,7 +89,7 @@ private:
             m_caseExprp = NULL;
         }
     }
-    virtual void visit(AstConst* nodep) {
+    virtual void visit(AstConst* nodep) VL_OVERRIDE {
         // See also neverItem
         if (m_caseExprp && nodep->num().isFourState()) {
             if (VN_IS(m_caseExprp, GenCase)) {
@@ -106,7 +106,7 @@ private:
             }
         }
     }
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 public:
@@ -210,7 +210,12 @@ private:
                 return false;
             }
         }
-        if (m_caseItems <= 3) return false;  // Not worth simplifying
+        if (m_caseItems <= 3
+            // Avoid e.g. priority expanders from going crazy in expansion
+            || (m_caseWidth >= 8 && (m_caseItems <= (m_caseWidth + 1)))) {
+            return false;  // Not worth simplifying
+        }
+
         // Convert valueItem from AstCaseItem* to the expression
         // Not done earlier, as we may now have a NULL because it's just a ";" NOP branch
         for (uint32_t i=0; i<(1UL<<m_caseWidth); ++i) {
@@ -245,7 +250,7 @@ private:
                 if (m_valueItem[a] != m_valueItem[b]) { same = false; break; }
             }
             if (same) {
-                tree1p->deleteTree(); VL_DANGLING(tree1p);
+                VL_DO_DANGLING(tree1p->deleteTree(), tree1p);
                 return tree0p;
             }
 
@@ -294,8 +299,8 @@ private:
 
         if (ifrootp) nodep->replaceWith(ifrootp);
         else nodep->unlinkFrBack();
-        nodep->deleteTree(); VL_DANGLING(nodep);
-        cexprp->deleteTree(); VL_DANGLING(cexprp);
+        VL_DO_DANGLING(nodep->deleteTree(), nodep);
+        VL_DO_DANGLING(cexprp->deleteTree(), cexprp);
         if (debug()>=9) ifrootp->dumpTree(cout, "    _simp: ");
     }
 
@@ -326,7 +331,7 @@ private:
                     AstConst* iconstp = VN_CAST(icondp, Const);
                     if (iconstp && neverItem(nodep, iconstp)) {
                         // X in casez can't ever be executed
-                        icondp->deleteTree(); VL_DANGLING(icondp); VL_DANGLING(iconstp);
+                        VL_DO_DANGLING(icondp->deleteTree(), icondp); VL_DANGLING(iconstp);
                         // For simplicity, make expression that is not equal, and let later
                         // optimizations remove it
                         condp = new AstConst(itemp->fileline(), AstConst::LogicFalse());
@@ -338,6 +343,8 @@ private:
                         AstNode* bp = AstLte::newTyped(itemp->fileline(),
                                                        cexprp->cloneTree(false),
                                                        irangep->rhsp()->unlinkFrBack());
+                        ap->fileline()->modifyWarnOff(V3ErrorCode::UNSIGNED, true);
+                        bp->fileline()->modifyWarnOff(V3ErrorCode::CMPCONST, true);
                         condp = new AstAnd(itemp->fileline(), ap, bp);
                     } else if (iconstp && iconstp->num().isFourState()
                                && (nodep->casex() || nodep->casez() || nodep->caseInside())) {
@@ -350,7 +357,7 @@ private:
                         AstNode* and2p = new AstAnd(itemp->fileline(),
                                                     new AstConst(itemp->fileline(), numval),
                                                     new AstConst(itemp->fileline(), nummask));
-                        icondp->deleteTree(); VL_DANGLING(icondp); VL_DANGLING(iconstp);
+                        VL_DO_DANGLING(icondp->deleteTree(), icondp); VL_DANGLING(iconstp);
                         condp = AstEq::newTyped(itemp->fileline(), and1p, and2p);
                     } else {
                         // Not a caseX mask, we can simply build CASEEQ(cexpr icond)
@@ -368,7 +375,7 @@ private:
                 itemp->condsp(ifexprp);
             }
         }
-        cexprp->deleteTree(); VL_DANGLING(cexprp);
+        VL_DO_DANGLING(cexprp->deleteTree(), cexprp);
         if (!hadDefault) {
             // If there was no default, add a empty one, this greatly simplifies below code
             // and constant propagation will just eliminate it for us later.
@@ -411,7 +418,7 @@ private:
             {   // Make the new lower IF and attach in the tree
                 AstNode* itemexprp = ifexprp; VL_DANGLING(ifexprp);
                 if (depth == (CASE_ENCODER_GROUP_DEPTH)) {  // End of group - can skip the condition
-                    itemexprp->deleteTree(); VL_DANGLING(itemexprp);
+                    VL_DO_DANGLING(itemexprp->deleteTree(), itemexprp);
                     itemexprp = new AstConst(itemp->fileline(), AstConst::LogicTrue());
                 }
                 AstIf* newp = new AstIf(itemp->fileline(), itemexprp, istmtsp, NULL);
@@ -427,7 +434,7 @@ private:
         if (debug()>=9 && grouprootp) grouprootp->dumpTree(cout, "     _new: ");
         if (grouprootp) nodep->replaceWith(grouprootp);
         else nodep->unlinkFrBack();
-        nodep->deleteTree(); VL_DANGLING(nodep);
+        VL_DO_DANGLING(nodep->deleteTree(), nodep);
     }
 
     void replaceCaseParallel(AstCase* nodep, bool noOverlapsAllCovered) {
@@ -453,7 +460,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstCase* nodep) {
+    virtual void visit(AstCase* nodep) VL_OVERRIDE {
         V3Case::caseLint(nodep);
         iterateChildren(nodep);
         if (debug()>=9) nodep->dumpTree(cout, " case_old: ");
@@ -461,15 +468,15 @@ private:
             // It's a simple priority encoder or complete statement
             // we can make a tree of statements to avoid extra comparisons
             ++m_statCaseFast;
-            replaceCaseFast(nodep); VL_DANGLING(nodep);
+            VL_DO_DANGLING(replaceCaseFast(nodep), nodep);
         } else {
             ++m_statCaseSlow;
-            replaceCaseComplicated(nodep); VL_DANGLING(nodep);
+            VL_DO_DANGLING(replaceCaseComplicated(nodep), nodep);
         }
     }
     //--------------------
     // Default: Just iterate
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 

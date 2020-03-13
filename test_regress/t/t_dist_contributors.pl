@@ -34,7 +34,10 @@ sub check {
     for my $author (sort keys %Authors) {
         print "Check: $author\n" if $Self->{verbose};
         if (!$Contributors{$author}) {
-            error("Certify your contribution by appending '$author' to CONTRIBUTORS");
+            error("Certify your contribution by appending '$author' to docs/CONTRIBUTORS.\n"
+                  ."   If '$author' is not your real name, please fix 'name=' in ~/.gitconfig\n"
+                  ."   Also check your https://github.com account's Settings->Profile->Name\n"
+                  ."   matches your ~/.gitconfig 'name='.\n");
         }
     }
 }
@@ -46,7 +49,7 @@ sub read_contributors {
     # Assumes git .mailmap format
     while (my $line = ($fh && $fh->getline)) {
         while ($line =~ /(.*)/g) {
-            $line =~ s/ *<[^>]+>//;
+            $line =~ s/ *<[^>]*>//;
             $Contributors{$1} = 1;
         }
     }
@@ -71,9 +74,9 @@ sub read_user {
 
 sub read_authors {
     # Check recent commits in case did commit
-    my $git_auths = `git log '--pretty=format:%aN <%aE>' | head -20`;
+    my $git_auths = `git log '--pretty=format:%aN <%aE>' | head -5`;
     foreach my $line (split /\n/, $git_auths) {
-        $line =~ s/ *<[^>]+>//;
+        $line =~ s/ *<[^>]*>//;
         $Authors{$line} = 1;
     }
 }

@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Options parsing
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -43,6 +43,10 @@
 #include <set>
 
 #include "config_rev.h"
+
+#if defined(_WIN32) || defined(__MINGW32__)
+# include <io.h>  // open, close
+#endif
 
 //######################################################################
 // V3 Internal state
@@ -178,9 +182,7 @@ void V3Options::checkParameters() {
 }
 
 void V3Options::addCppFile(const string& filename) {
-    if (m_cppFiles.find(filename) == m_cppFiles.end()) {
-        m_cppFiles.insert(filename);
-    }
+    m_cppFiles.insert(filename);
 }
 void V3Options::addCFlags(const string& filename) {
     m_cFlags.push_back(filename);
@@ -189,9 +191,7 @@ void V3Options::addLdLibs(const string& filename) {
     m_ldLibs.push_back(filename);
 }
 void V3Options::addFuture(const string& flag) {
-    if (m_futures.find(flag) == m_futures.end()) {
-        m_futures.insert(flag);
-    }
+    m_futures.insert(flag);
 }
 bool V3Options::isFuture(const string& flag) const {
     return m_futures.find(flag) != m_futures.end();
@@ -200,25 +200,19 @@ bool V3Options::isLibraryFile(const string& filename) const {
     return m_libraryFiles.find(filename) != m_libraryFiles.end();
 }
 void V3Options::addLibraryFile(const string& filename) {
-    if (m_libraryFiles.find(filename) == m_libraryFiles.end()) {
-        m_libraryFiles.insert(filename);
-    }
+    m_libraryFiles.insert(filename);
 }
 bool V3Options::isClocker(const string& signame) const {
     return m_clockers.find(signame) != m_clockers.end();
 }
 void V3Options::addClocker(const string& signame) {
-    if (m_clockers.find(signame) == m_clockers.end()) {
-        m_clockers.insert(signame);
-    }
+    m_clockers.insert(signame);
 }
 bool V3Options::isNoClocker(const string& signame) const {
     return m_noClockers.find(signame) != m_noClockers.end();
 }
 void V3Options::addNoClocker(const string& signame) {
-    if (m_noClockers.find(signame) == m_noClockers.end()) {
-        m_noClockers.insert(signame);
-    }
+    m_noClockers.insert(signame);
 }
 void V3Options::addVFile(const string& filename) {
     // We use a list for v files, because it's legal to have includes
@@ -250,7 +244,7 @@ V3LangCode::V3LangCode(const char* textp) {
     // Return code for given string, or ERROR, which is a bad code
     for (int codei=V3LangCode::L_ERROR; codei<V3LangCode::_ENUM_END; ++codei) {
         V3LangCode code = V3LangCode(codei);
-        if (0==strcasecmp(textp, code.ascii())) {
+        if (0 == VL_STRCASECMP(textp, code.ascii())) {
             m_e = code; return;
         }
     }
@@ -370,7 +364,12 @@ string V3Options::filePath(FileLine* fl, const string& modname, const string& la
 
 void V3Options::filePathLookedMsg(FileLine* fl, const string& modname) {
     static bool shown_notfound_msg = false;
-    if (!shown_notfound_msg) {
+    if (modname.find("__Vhsh") != string::npos) {
+        std::cerr << V3Error::warnMore() << "... Unsupported: Name is longer than 127 characters;"
+                  << " automatic file lookup not supported.\n";
+        std::cerr << V3Error::warnMore() << "... Suggest putting filename with this module/package"
+                  << " onto command line instead.\n";
+    } else if (!shown_notfound_msg) {
         shown_notfound_msg = true;
         if (m_impp->m_incDirUsers.empty()) {
             fl->v3error("This may be because there's no search path specified with -I<dir>."<<endl);
@@ -528,12 +527,13 @@ string V3Options::getenvVERILATOR_ROOT() {
 void V3Options::notify() {
     // Notify that all arguments have been passed and final modification can be made.
     if (!outFormatOk()
-        && !preprocOnly()
-        && !lintOnly()
-        && !xmlOnly()
         && !cdc()
+        && !dpiHdrOnly()
+        && !lintOnly()
+        && !preprocOnly()
+        && !xmlOnly()
         && !dumpNetlistGraph()) {
-        v3fatal("verilator: Need --cc, --sc, --cdc, --lint-only, --xml_only or --E option");
+        v3fatal("verilator: Need --cc, --sc, --cdc, --dpi-hdr-only, --lint-only, --xml-only, --dump-netlist-graph or --E option");
     }
 
     // Make sure at least one make system is enabled
@@ -559,6 +559,24 @@ void V3Options::notify() {
                           "Using --protect-ids with --vpi may expose private design details\n"
                           +V3Error::warnMore()+"... Suggest remove --vpi.");
         }
+    }
+
+    // Default some options if not turned on or off
+    if (v3Global.opt.skipIdentical().isDefault()) {
+        v3Global.opt.m_skipIdentical.setTrueOrFalse(
+            !v3Global.opt.cdc()
+            && !v3Global.opt.dpiHdrOnly()
+            && !v3Global.opt.lintOnly()
+            && !v3Global.opt.preprocOnly()
+            && !v3Global.opt.xmlOnly());
+    }
+    if (v3Global.opt.makeDepend().isDefault()) {
+        v3Global.opt.m_makeDepend.setTrueOrFalse(
+            !v3Global.opt.cdc()
+            && !v3Global.opt.dpiHdrOnly()
+            && !v3Global.opt.lintOnly()
+            && !v3Global.opt.preprocOnly()
+            && !v3Global.opt.xmlOnly());
     }
 }
 
@@ -639,6 +657,15 @@ bool V3Options::onoff(const char* sw, const char* arg, bool& flag) {
     else if (0==strncmp(sw, "-no-", 4) && (0==strcmp(sw+4, arg+1))) { flag = false; return true; }
     return false;
 }
+bool V3Options::onoffb(const char* sw, const char* arg, VOptionBool& bflag) {
+    bool flag;
+    if (onoff(sw, arg, flag/*ref*/)) {
+        bflag.setTrueOrFalse(flag);
+        return true;
+    } else {
+        return false;
+    }
+}
 
 bool V3Options::suffixed(const string& sw, const char* arg) {
     if (strlen(arg) > sw.length()) return false;
@@ -656,7 +683,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
     for (int i=0; i<argc; )  {
         UINFO(9, " Option: "<<argv[i]<<endl);
         if (argv[i][0]=='+') {
-            char *sw = argv[i];
+            char* sw = argv[i];
             if (!strncmp (sw, "+define+", 8)) {
                 addDefine(string(sw+strlen("+define+")), true);
             }
@@ -695,14 +722,16 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
             shift;
         }  // + options
         else if (argv[i][0]=='-') {
-            const char *sw = argv[i];
+            const char* sw = argv[i];
             bool flag = true;
+            VOptionBool bflag;
             // Allow gnu -- switches
             if (sw[0]=='-' && sw[1]=='-') ++sw;
+            bool hadSwitchPart1 = true;
             if (0) {}
             // Single switches
             else if (!strcmp(sw, "-E"))                         { m_preprocOnly = true; }
-            else if ( onoff (sw, "-MMD", flag/*ref*/))          { m_makeDepend = flag; }
+            else if ( onoffb(sw, "-MMD", bflag/*ref*/))         { m_makeDepend = bflag; }
             else if ( onoff (sw, "-MP", flag/*ref*/))           { m_makePhony = flag; }
             else if (!strcmp(sw, "-P"))                         { m_preprocNoLine = true; }
             else if ( onoff (sw, "-assert", flag/*ref*/))       { m_assert = flag; }
@@ -750,26 +779,31 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
             else if ( onoff (sw, "-protect-ids", flag/*ref*/))       { m_protectIds = flag; }
             else if ( onoff (sw, "-public", flag/*ref*/))            { m_public = flag; }
             else if ( onoff (sw, "-public-flat-rw", flag/*ref*/) )   { m_publicFlatRW = flag; v3Global.dpi(true); }
-            else if (!strncmp(sw, "-pvalue+", strlen("-pvalue+")))     { addParameter(string(sw+strlen("-pvalue+")), false); }
+            else if (!strncmp(sw, "-pvalue+", strlen("-pvalue+")))   { addParameter(string(sw+strlen("-pvalue+")), false); }
             else if ( onoff (sw, "-relative-cfuncs", flag/*ref*/))   { m_relativeCFuncs = flag; }
             else if ( onoff (sw, "-relative-includes", flag/*ref*/)) { m_relativeIncludes = flag; }
             else if ( onoff (sw, "-report-unoptflat", flag/*ref*/))  { m_reportUnoptflat = flag; }
             else if ( onoff (sw, "-savable", flag/*ref*/))           { m_savable = flag; }
             else if (!strcmp(sw, "-sc"))                             { m_outFormatOk = true; m_systemC = true; }
-            else if ( onoff (sw, "-skip-identical", flag/*ref*/))    { m_skipIdentical = flag; }
+            else if ( onoffb(sw, "-skip-identical", bflag/*ref*/))   { m_skipIdentical = bflag; }
             else if ( onoff (sw, "-stats", flag/*ref*/))             { m_stats = flag; }
             else if ( onoff (sw, "-stats-vars", flag/*ref*/))        { m_statsVars = flag; m_stats |= flag; }
+            else if ( onoff (sw, "-structs-unpacked", flag/*ref*/))  { m_structsPacked = flag; }
             else if (!strcmp(sw, "-sv"))                             { m_defaultLanguage = V3LangCode::L1800_2005; }
             else if ( onoff (sw, "-threads-coarsen", flag/*ref*/))   { m_threadsCoarsen = flag; }  // Undocumented, debug
             else if ( onoff (sw, "-trace", flag/*ref*/))             { m_trace = flag; }
+            else if ( onoff (sw, "-trace-coverage", flag/*ref*/))    { m_traceCoverage = flag; }
             else if ( onoff (sw, "-trace-dups", flag/*ref*/))        { m_traceDups = flag; }
             else if ( onoff (sw, "-trace-params", flag/*ref*/))      { m_traceParams = flag; }
             else if ( onoff (sw, "-trace-structs", flag/*ref*/))     { m_traceStructs = flag; }
             else if ( onoff (sw, "-trace-underscore", flag/*ref*/))  { m_traceUnderscore = flag; }
             else if ( onoff (sw, "-underline-zero", flag/*ref*/))    { m_underlineZero = flag; }  // Undocumented, old Verilator-2
             else if ( onoff (sw, "-vpi", flag/*ref*/))               { m_vpi = flag; }
+            else if ( onoff (sw, "-Wpedantic", flag/*ref*/))         { m_pedantic = flag; }
             else if ( onoff (sw, "-x-initial-edge", flag/*ref*/))    { m_xInitialEdge = flag; }
             else if ( onoff (sw, "-xml-only", flag/*ref*/))          { m_xmlOnly = flag; }  // Undocumented, still experimental
+            else { hadSwitchPart1 = false; }
+            if (hadSwitchPart1) {}
             // Optimization
             else if (!strncmp (sw, "-O", 2)) {
                 for (const char* cp=sw+strlen("-O"); *cp; ++cp) {
@@ -907,6 +941,10 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
                     fl->v3fatal("Unknown --make system specified: '"<<argv[i]<<"'");
                 }
             }
+            else if (!strcmp(sw, "-max-num-width")) {
+                shift;
+                m_maxNumWidth = atoi(argv[i]);
+            }
             else if (!strcmp(sw, "-no-l2name")) {  // Historical and undocumented
                 m_l2Name = "";
             }
@@ -1021,15 +1059,18 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
                 addFuture(msg);
             }
             else if (!strncmp (sw, "-Wno-", 5)) {
-                if (!strcmp(sw, "-Wno-lint")) {
+                if (!strcmp(sw, "-Wno-context")) {
+                    m_context = false;
+                }
+                else if (!strcmp(sw, "-Wno-fatal")) {
+                    V3Error::warnFatal(false);
+                }
+                else if (!strcmp(sw, "-Wno-lint")) {
                     FileLine::globalWarnLintOff(true);
                     FileLine::globalWarnStyleOff(true);
                 }
                 else if (!strcmp(sw, "-Wno-style")) {
                     FileLine::globalWarnStyleOff(true);
-                }
-                else if (!strcmp(sw, "-Wno-fatal")) {
-                    V3Error::warnFatal(false);
                 }
                 else {
                     string msg = sw+strlen("-Wno-");
@@ -1163,6 +1204,10 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
                     fl->v3fatal("Unknown setting for --x-initial: "<<argv[i]);
                 }
             }
+            else if (!strcmp(sw, "-xml-output") && (i+1)<argc) {
+                shift; m_xmlOutput = argv[i];
+                m_xmlOnly = true;
+            }
             else if (!strcmp(sw, "-y") && (i+1)<argc) {
                 shift; addIncDirUser(parseFileArg(optdir, string(argv[i])));
             }
@@ -1214,13 +1259,15 @@ void V3Options::parseOptsFile(FileLine* fl, const string& filename, bool rel) {
         // Strip simple comments
         string oline;
         // cppcheck-suppress StlMissingComparison
-        for (string::const_iterator pos = line.begin(); pos != line.end(); ++pos) {
+        char lastch = ' ';
+        for (string::const_iterator pos = line.begin(); pos != line.end(); lastch = *pos++) {
             if (inCmt) {
                 if (*pos=='*' && *(pos+1)=='/') {
                     inCmt = false;
                     ++pos;
                 }
-            } else if (*pos=='/' && *(pos+1)=='/') {
+            } else if (*pos=='/' && *(pos+1)=='/'
+                       && (pos == line.begin() || isspace(lastch))) {    // But allow /file//path
                 break;  // Ignore to EOL
             } else if (*pos=='/' && *(pos+1)=='*') {
                 inCmt = true;
@@ -1238,36 +1285,97 @@ void V3Options::parseOptsFile(FileLine* fl, const string& filename, bool rel) {
     fl = new FileLine(filename);
 
     // Split into argument list and process
-    // Note we don't respect quotes.  It seems most simulators dont.
-    // Woez those that expect it; we'll at least complain.
-    if (whole_file.find('\"') != string::npos) {
-        fl->v3error("Double quotes in -f files cause unspecified behavior.");
-    }
+    // Note we try to respect escaped char, double/simple quoted strings
+    // Other simulators don't respect a common syntax...
 
     // Strip off arguments and parse into words
     std::vector<string> args;
-    string::size_type startpos = 0;
-    while (startpos < whole_file.length()) {
-        while (isspace(whole_file[startpos])) ++startpos;
-        string::size_type endpos = startpos;
-        while (endpos < whole_file.length() && !isspace(whole_file[endpos])) ++endpos;
-        if (startpos != endpos) {
-            string arg (whole_file, startpos, endpos-startpos);
-            args.reserve(args.size()+1);
-            args.push_back(arg);
+
+    // Parse file using a state machine, taking into account quoted strings and escaped chars
+    enum state {ST_IN_OPTION,
+                ST_ESCAPED_CHAR,
+                ST_IN_QUOTED_STR,
+                ST_IN_DOUBLE_QUOTED_STR};
+
+    state st = ST_IN_OPTION;
+    state last_st = ST_IN_OPTION;
+    string arg;
+    for (string::size_type pos = 0;
+         pos < whole_file.length(); ++pos) {
+        char curr_char = whole_file[pos];
+        switch (st) {
+        case ST_IN_OPTION:  // Get all chars up to a white space or a "="
+            if (isspace(curr_char)) {  // End of option
+                if (!arg.empty()) {  // End of word
+                    args.push_back(arg);
+                }
+                arg = "";
+                break;
+            }
+            if (curr_char == '\\') {  // Escape char, we wait for next char
+                last_st = st;  // Memorize current state
+                st = ST_ESCAPED_CHAR;
+                break;
+            }
+            if (curr_char == '\'') {  // Find begin of quoted string
+                // Examine next char in order to decide between
+                // a string or a base specifier for integer literal
+                ++pos;
+                if (pos < whole_file.length()) curr_char = whole_file[pos];
+                if (curr_char == '"') {  // String
+                    st = ST_IN_QUOTED_STR;
+                } else {  // Base specifier
+                    arg += '\'';
+                }
+                arg +=  curr_char;
+                break;
+            }
+            if (curr_char == '"') {  // Find begin of double quoted string
+                // Doesn't insert the quote
+                st = ST_IN_DOUBLE_QUOTED_STR;
+                break;
+            }
+            arg += curr_char;
+            break;
+        case ST_IN_QUOTED_STR:  // Just store all chars inside string
+            if (curr_char != '\'') {
+                arg += curr_char;
+            } else {  // End of quoted string
+                st = ST_IN_OPTION;
+            }
+            break;
+        case ST_IN_DOUBLE_QUOTED_STR:  // Take into account escaped chars
+            if (curr_char != '"') {
+                if (curr_char == '\\') {
+                    last_st = st;
+                    st = ST_ESCAPED_CHAR;
+                } else {
+                    arg += curr_char;
+                }
+            } else {  // End of double quoted string
+                st = ST_IN_OPTION;
+            }
+            break;
+        case ST_ESCAPED_CHAR:  // Just add the escaped char
+            arg += curr_char;
+            st = last_st;
+            break;
         }
-        startpos = endpos;
+    }
+    if (!arg.empty()) {  // Add last word
+        args.push_back(arg);
     }
 
     // Path
     string optdir = (rel ? V3Os::filenameDir(filename) : ".");
 
     // Convert to argv style arg list and parse them
-    char* argv [args.size()+1];
-    for (unsigned i=0; i<args.size(); ++i) {
-        argv[i] = const_cast<char*>(args[i].c_str());
+    std::vector<char*> argv; argv.reserve(args.size()+1);
+    for (std::vector<std::string>::const_iterator it = args.begin(); it != args.end(); ++it) {
+        argv.push_back(const_cast<char*>(it->c_str()));
     }
-    parseOptsList(fl, optdir, args.size(), argv);
+    argv.push_back(NULL); // argv is NULL-terminated
+    parseOptsList(fl, optdir, static_cast<int>(argv.size()-1), argv.data());
 }
 
 //======================================================================
@@ -1303,13 +1411,13 @@ void V3Options::showVersion(bool verbose) {
     if (!verbose) return;
 
     cout <<endl;
-    cout << "Copyright 2003-2019 by Wilson Snyder.  Verilator is free software; you can\n";
+    cout << "Copyright 2003-2020 by Wilson Snyder.  Verilator is free software; you can\n";
     cout << "redistribute it and/or modify the Verilator internals under the terms of\n";
     cout << "either the GNU Lesser General Public License Version 3 or the Perl Artistic\n";
     cout << "License Version 2.0.\n";
 
     cout <<endl;
-    cout << "See http://www.veripool.org/verilator for documentation\n";
+    cout << "See https://verilator.org for documentation\n";
 
     cout <<endl;
     cout << "Summary of configuration:\n";
@@ -1342,6 +1450,7 @@ V3Options::V3Options() {
     m_bboxUnsup = false;
     m_cdc = false;
     m_cmake = false;
+    m_context = true;
     m_coverageLine = false;
     m_coverageToggle = false;
     m_coverageUnderscore = false;
@@ -1361,10 +1470,10 @@ V3Options::V3Options() {
     m_inhibitSim = false;
     m_lintOnly = false;
     m_gmake = false;
-    m_makeDepend = true;
     m_makePhony = false;
     m_orderClockDly = true;
     m_outFormatOk = false;
+    m_pedantic = false;
     m_pinsBv = 65;
     m_pinsScUint = false;
     m_pinsScBigUint = false;
@@ -1381,9 +1490,9 @@ V3Options::V3Options() {
     m_relativeIncludes = false;
     m_reportUnoptflat = false;
     m_savable = false;
-    m_skipIdentical = true;
     m_stats = false;
     m_statsVars = false;
+    m_structsPacked = true;
     m_systemC = false;
     m_threads = 0;
     m_threadsDpiPure = true;
@@ -1391,8 +1500,9 @@ V3Options::V3Options() {
     m_threadsCoarsen = true;
     m_threadsMaxMTasks = 0;
     m_trace = false;
-    m_traceFormat = TraceFormat::VCD;
+    m_traceCoverage = false;
     m_traceDups = false;
+    m_traceFormat = TraceFormat::VCD;
     m_traceParams = true;
     m_traceStructs = false;
     m_traceUnderscore = false;
@@ -1406,6 +1516,7 @@ V3Options::V3Options() {
     m_gateStmts = 100;
     m_ifDepth = 0;
     m_inlineMult = 2000;
+    m_maxNumWidth = 65536;
     m_moduleRecursion = 100;
     m_outputSplit = 0;
     m_outputSplitCFuncs = 0;
@@ -1441,7 +1552,7 @@ V3Options::V3Options() {
 }
 
 V3Options::~V3Options() {
-    delete m_impp; m_impp = NULL;
+    VL_DO_CLEAR(delete m_impp, m_impp = NULL);
 }
 
 void V3Options::setDebugMode(int level) {

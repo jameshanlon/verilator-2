@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: main()
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -38,6 +38,7 @@
 #include "V3Coverage.h"
 #include "V3CoverageJoin.h"
 #include "V3CCtors.h"
+#include "V3CUse.h"
 #include "V3Dead.h"
 #include "V3Delayed.h"
 #include "V3Depth.h"
@@ -82,6 +83,7 @@
 #include "V3Slice.h"
 #include "V3Split.h"
 #include "V3SplitAs.h"
+#include "V3SplitVar.h"
 #include "V3Stats.h"
 #include "V3String.h"
 #include "V3Subst.h"
@@ -101,67 +103,7 @@
 
 V3Global v3Global;
 
-//######################################################################
-// V3 Class -- top level
-
-AstNetlist* V3Global::makeNetlist() {
-    AstNetlist* newp = new AstNetlist();
-    newp->addTypeTablep(new AstTypeTable(newp->fileline()));
-    return newp;
-}
-
-void V3Global::checkTree() { rootp()->checkTree(); }
-
-void V3Global::clear() {
-    if (m_rootp) { m_rootp->deleteTree(); m_rootp = NULL; }
-}
-
-void V3Global::readFiles() {
-    // NODE STATE
-    //   AstNode::user4p()      // VSymEnt*    Package and typedef symbol names
-    AstUser4InUse       inuser4;
-
-    VInFilter filter (v3Global.opt.pipeFilter());
-    V3ParseSym parseSyms (v3Global.rootp());  // Symbol table must be common across all parsing
-
-    V3Parse parser (v3Global.rootp(), &filter, &parseSyms);
-    // Read top module
-    const V3StringList& vFiles = v3Global.opt.vFiles();
-    for (V3StringList::const_iterator it = vFiles.begin(); it != vFiles.end(); ++it) {
-        string filename = *it;
-        parser.parseFile(new FileLine(FileLine::commandLineFilename()),
-                         filename, false,
-                         "Cannot find file containing module: ");
-    }
-
-    // Read libraries
-    // To be compatible with other simulators,
-    // this needs to be done after the top file is read
-    const V3StringSet& libraryFiles = v3Global.opt.libraryFiles();
-    for (V3StringSet::const_iterator it = libraryFiles.begin(); it != libraryFiles.end(); ++it) {
-        string filename = *it;
-        parser.parseFile(new FileLine(FileLine::commandLineFilename()),
-                         filename, true,
-                         "Cannot find file containing library module: ");
-    }
-    //v3Global.rootp()->dumpTreeFile(v3Global.debugFilename("parse.tree"));
-    V3Error::abortIfErrors();
-
-    if (!v3Global.opt.preprocOnly()) {
-        // Resolve all modules cells refer to
-        V3LinkCells::link(v3Global.rootp(), &filter, &parseSyms);
-    }
-}
-
-void V3Global::dumpCheckGlobalTree(const string& stagename, int newNumber, bool doDump) {
-    v3Global.rootp()->dumpTreeFile(v3Global.debugFilename(stagename+".tree", newNumber),
-                                   false, doDump);
-    if (v3Global.opt.stats()) V3Stats::statsStage(stagename);
-}
-
-//######################################################################
-
-void process() {
+static void process() {
     // Sort modules by level so later algorithms don't need to care
     V3LinkLevel::modSortByLevel();
     V3Error::abortIfErrors();
@@ -235,12 +177,14 @@ void process() {
     V3Const::constifyAllLint(v3Global.rootp());
 
     if (!v3Global.opt.xmlOnly()) {
+        // Split packed variables into multiple pieces to resolve UNOPTFLAT.
+        // should be after constifyAllLint() which flattens to 1D bit vector
+        V3SplitVar::splitVariable(v3Global.rootp());
+
         // Remove cell arrays (must be between V3Width and scoping)
         V3Inst::dearrayAll(v3Global.rootp());
         V3LinkDot::linkDotArrayed(v3Global.rootp());
-    }
 
-    if (!v3Global.opt.xmlOnly()) {
         // Task inlining & pushing BEGINs names to variables/cells
         // Begin processing must be after Param, before module inlining
         V3Begin::debeginAll(v3Global.rootp());  // Flatten cell names, before inliner
@@ -471,7 +415,8 @@ void process() {
     }
 
     // Expand macros and wide operators into C++ primitives
-    if (!v3Global.opt.xmlOnly()
+    if (!v3Global.opt.lintOnly()
+        && !v3Global.opt.xmlOnly()
         && v3Global.opt.oExpand()) {
         V3Expand::expandAll(v3Global.rootp());
     }
@@ -524,6 +469,10 @@ void process() {
     if (!v3Global.opt.lintOnly()
         && !v3Global.opt.xmlOnly()
         && !v3Global.opt.dpiHdrOnly()) {
+        // Create AstCUse to determine what class forward declarations/#includes needed in C
+        // Must be before V3EmitC
+        V3CUse::cUseAll(v3Global.rootp());
+
         // emitcInlines is first, as it may set needHInlines which other emitters read
         V3EmitC::emitcInlines();
         V3EmitC::emitcSyms();
@@ -714,10 +663,7 @@ int main(int argc, char** argv, char** env) {
 
     // Can we skip doing everything if times are ok?
     V3File::addSrcDepend(v3Global.opt.bin());
-    if (v3Global.opt.skipIdentical()
-        && !v3Global.opt.preprocOnly()
-        && !v3Global.opt.lintOnly()
-        && !v3Global.opt.cdc()
+    if (v3Global.opt.skipIdentical().isTrue()
         && V3File::checkTimes(v3Global.opt.makeDir()+"/"+v3Global.opt.prefix()
                               +"__verFiles.dat", argString)) {
         UINFO(1,"--skip-identical: No change to any source files, exiting\n");
@@ -760,13 +706,10 @@ int main(int argc, char** argv, char** env) {
     V3Global::dumpCheckGlobalTree("final", 990, v3Global.opt.dumpTreeLevel(__FILE__) >= 3);
     V3Error::abortIfWarnings();
 
-    if (!v3Global.opt.lintOnly() && !v3Global.opt.cdc()
-        && !v3Global.opt.dpiHdrOnly() && v3Global.opt.makeDepend()) {
+    if (v3Global.opt.makeDepend().isTrue()) {
         V3File::writeDepend(v3Global.opt.makeDir()+"/"+v3Global.opt.prefix()+"__ver.d");
     }
-    if (!v3Global.opt.lintOnly() && !v3Global.opt.cdc()
-        && !v3Global.opt.dpiHdrOnly()
-        && (v3Global.opt.skipIdentical() || v3Global.opt.makeDepend())) {
+    if (v3Global.opt.skipIdentical().isTrue() || v3Global.opt.makeDepend().isTrue()) {
         V3File::writeTimes(v3Global.opt.makeDir()+"/"+v3Global.opt.prefix()
                            +"__verFiles.dat", argString);
     }

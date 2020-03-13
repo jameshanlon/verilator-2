@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Netlist (top level) functions
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -57,11 +57,11 @@ extern void yyerrorf(const char* format, ...);
 
 V3ParseImp::~V3ParseImp() {
     for (std::deque<string*>::iterator it = m_stringps.begin(); it != m_stringps.end(); ++it) {
-        delete (*it);
+        VL_DO_DANGLING(delete *it, *it);
     }
     m_stringps.clear();
     for (std::deque<V3Number*>::iterator it = m_numberps.begin(); it != m_numberps.end(); ++it) {
-        delete (*it);
+        VL_DO_DANGLING(delete *it, *it);
     }
     m_numberps.clear();
     lexDestroy();
@@ -172,7 +172,7 @@ double V3ParseImp::parseDouble(const char* textp, size_t length, bool* successp)
         if (successp) *successp = false;
         else yyerrorf("Syntax error parsing real: %s", strgp);
     }
-    delete[] strgp;
+    VL_DO_DANGLING(delete[] strgp, strgp);
     return d;
 }
 
@@ -191,7 +191,7 @@ size_t V3ParseImp::ppInputToLex(char* buf, size_t max_size) {
             m_ppBuffers.push_front(remainder);  // Put back remainder for next time
             len = (max_size-got);
         }
-        strncpy(buf+got, front.c_str(), len);
+        memcpy(buf+got, front.c_str(), len);
         got += len;
     }
     if (debug()>=9) {
@@ -256,7 +256,7 @@ void V3ParseImp::parseFile(FileLine* fileline, const string& modfilename, bool i
             preprocDumps(*osp);
             if (ofp) {
                 ofp->close();
-                delete ofp; VL_DANGLING(ofp);
+                VL_DO_DANGLING(delete ofp, ofp);
             }
         }
     }
@@ -288,7 +288,7 @@ V3Parse::V3Parse(AstNetlist* rootp, VInFilter* filterp, V3ParseSym* symp) {
     m_impp = new V3ParseImp(rootp, filterp, symp);
 }
 V3Parse::~V3Parse() {
-    delete m_impp; m_impp = NULL;
+    VL_DO_CLEAR(delete m_impp, m_impp = NULL);
 }
 void V3Parse::parseFile(FileLine* fileline, const string& modname, bool inLibrary,
                         const string& errmsg) {

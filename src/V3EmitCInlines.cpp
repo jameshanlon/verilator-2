@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Emit C++ for tree
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -40,19 +40,68 @@ class EmitCInlines : EmitCBaseVisitor {
     void emitInt();
 
     // VISITORS
-    virtual void visit(AstBasicDType* nodep) {
+    virtual void visit(AstBasicDType* nodep) VL_OVERRIDE {
         if (nodep->keyword() == AstBasicDTypeKwd::STRING) {
             // Request #include <string> via verilated_heavy.h when we create symbol file
             v3Global.needHeavy(true);
         }
     }
-    virtual void visit(AstValuePlusArgs* nodep) {
+    virtual void visit(AstAssocArrayDType* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstDynArrayDType* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstQueueDType* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstNodeReadWriteMem* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstValuePlusArgs* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstNew* nodep) VL_OVERRIDE {
+        if (v3Global.opt.savable()) v3error("Unsupported: --savable with dynamic new");
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstAtoN* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstDumpCtl* nodep) VL_OVERRIDE {
+        if (v3Global.opt.trace()) v3Global.needTraceDumper(true);
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstPutcN* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstGetcN* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstGetcRefN* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstSubstrN* nodep) VL_OVERRIDE {
+        v3Global.needHeavy(true);
+        iterateChildren(nodep);
+    }
+    virtual void visit(AstCompareNN* nodep) VL_OVERRIDE {
         v3Global.needHeavy(true);
         iterateChildren(nodep);
     }
 
     // Default
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
     //---------------------------------------
@@ -73,8 +122,7 @@ void EmitCInlines::emitInt() {
     m_ofp = &hf;
 
     ofp()->putsHeader();
-    puts("#ifndef _"+topClassName()+"__Inlines_H_\n");
-    puts("#define _"+topClassName()+"__Inlines_H_\n");
+    ofp()->putsGuard();
     puts("\n");
 
     puts("#include \"verilated.h\"\n");
@@ -84,7 +132,7 @@ void EmitCInlines::emitInt() {
     // Placeholder - v3Global.needHInlines(true) currently not used
 
     puts("//======================\n\n");
-    puts("#endif  // guard\n");
+    ofp()->putsEndGuard();
 }
 
 //######################################################################

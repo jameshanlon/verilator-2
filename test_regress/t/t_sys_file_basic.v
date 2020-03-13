@@ -19,6 +19,7 @@ module t;
    reg [16*8:1]	letterz;
    real		r;
    string	s;
+   integer 	i;
 
    reg [7:0] 	v_a,v_b,v_c,v_d;
    reg [31:0] 	v_worda;
@@ -51,6 +52,13 @@ module t;
 
       $fdisplay(file, "[%0t] hello v=%x", $time, 32'h12345667);
       $fwrite(file, "[%0t] %s\n", $time, "Hello2");
+
+      i = 12;
+      $fwrite(file, "d: "); $fwrite(file, i); $fwrite(file, " "); $fdisplay(file, i);
+      $fwriteh(file, "h: "); $fwriteh(file, i); $fwriteh(file, " "); $fdisplayh(file, i);
+      $fwriteo(file, "o: "); $fwriteo(file, i); $fwriteo(file, " "); $fdisplayo(file, i);
+      $fwriteb(file, "b: "); $fwriteb(file, i); $fwriteb(file, " "); $fdisplayb(file, i);
+
       $fflush(file);
 
       $fclose(file);
@@ -89,6 +97,10 @@ module t;
 	 if ($fgetc(file) != "h") $stop;
 	 if ($fgetc(file) != "i") $stop;
 	 if ($fgetc(file) != "\n") $stop;
+
+	 // $ungetc
+	 if ($ungetc("x", file) != 0) $stop;
+	 if ($fgetc(file) != "x") $stop;
 
 	 // $fgets
 	 chars = $fgets(letterl, file);
@@ -247,6 +259,9 @@ module t;
 	if ($fseek(file, 0, 2) != 0) $stop;
 	v_off = $ftell(file);
 	if (v_off < v_length) $stop;
+	if ($rewind(file) != 0) $stop;
+	v_off = $ftell(file);
+	if (v_off != 0) $stop;
 
 	 $fclose(file);
       end

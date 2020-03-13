@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Expression width calculations
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -60,16 +60,16 @@ private:
         if (!VN_IS(nodep, Const)) {
             nodep->v3error(message);
             nodep->replaceWith(new AstConst(nodep->fileline(), AstConst::Unsized32(), 1));
-            pushDeletep(nodep); VL_DANGLING(nodep);
+            VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
     }
 
     // RETURN TYPE
     struct FromData {
-        AstNode* m_errp;  // Node that was found, for error reporting if not known type
+        AstNodeDType* m_errp;  // Node that was found, for error reporting if not known type
         AstNodeDType* m_dtypep;  // Data type for the 'from' slice
         VNumRange m_fromRange;  // Numeric range bounds for the 'from' slice
-        FromData(AstNode* errp, AstNodeDType* dtypep, const VNumRange& fromRange)
+        FromData(AstNodeDType* errp, AstNodeDType* dtypep, const VNumRange& fromRange)
             { m_errp = errp; m_dtypep = dtypep; m_fromRange = fromRange; }
         ~FromData() {}
     };
@@ -86,29 +86,36 @@ private:
         }
         UASSERT_OBJ(basefromp && basefromp->dtypep(), nodep, "Select with no from dtype");
         AstNodeDType* ddtypep = basefromp->dtypep()->skipRefp();
-        AstNode* errp = ddtypep;
+        AstNodeDType* errp = ddtypep;
         UINFO(9,"  fromData.ddtypep = "<<ddtypep<<endl);
         if (const AstNodeArrayDType* adtypep = VN_CAST(ddtypep, NodeArrayDType)) {
             fromRange = adtypep->declRange();
         }
-        else if (const AstNodeClassDType* adtypep = VN_CAST(ddtypep, NodeClassDType)) {
+        else if (VN_IS(ddtypep, AssocArrayDType)) {
+        }
+        else if (VN_IS(ddtypep, DynArrayDType)) {
+        }
+        else if (VN_IS(ddtypep, QueueDType)) {
+        }
+        else if (const AstNodeUOrStructDType* adtypep = VN_CAST(ddtypep, NodeUOrStructDType)) {
             fromRange = adtypep->declRange();
         }
         else if (AstBasicDType* adtypep = VN_CAST(ddtypep, BasicDType)) {
-            if (adtypep->isRanged()) {
+            if (adtypep->isString() && VN_IS(nodep, SelBit)) {
+            } else if (adtypep->isRanged()) {
                 UASSERT_OBJ(!(adtypep->rangep()
                               && (!VN_IS(adtypep->rangep()->msbp(), Const)
                                   || !VN_IS(adtypep->rangep()->lsbp(), Const))),
                             nodep, "Non-constant variable range; errored earlier");  // in constifyParam(bfdtypep)
                 fromRange = adtypep->declRange();
             } else {
-                nodep->v3error("Illegal bit or array select; type does not have a bit range, or bad dimension: type is "
-                               <<errp->prettyName());
+                nodep->v3error("Illegal bit or array select; type does not have a bit range, or "
+                               << "bad dimension: data type is " << errp->prettyDTypeNameQ());
             }
         }
         else {
-            nodep->v3error("Illegal bit or array select; type already selected, or bad dimension: type is "
-                           <<errp->prettyName());
+            nodep->v3error("Illegal bit or array select; type already selected, or bad dimension: "
+                           << "data type is " << errp->prettyDTypeNameQ());
         }
         return FromData(errp, ddtypep, fromRange);
     }
@@ -190,9 +197,9 @@ private:
     }
 
     // VISITORS
-    // If adding new visitors, insure V3Width's visit(TYPE) calls into here
+    // If adding new visitors, ensure V3Width's visit(TYPE) calls into here
 
-    virtual void visit(AstSelBit* nodep) {
+    virtual void visit(AstSelBit* nodep) VL_OVERRIDE {
         // Select of a non-width specified part of an array, i.e. "array[2]"
         // This select style has a lsb and msb (no user specified width)
         UINFO(6,"SELBIT "<<nodep<<endl);
@@ -215,7 +222,7 @@ private:
                                                 fromp, subp);
             newp->dtypeFrom(adtypep->subDTypep());  // Need to strip off array reference
             if (debug()>=9) newp->dumpTree(cout, "--SELBTn: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         else if (AstPackArrayDType* adtypep = VN_CAST(ddtypep, PackArrayDType)) {
             // SELBIT(array, index) -> SEL(array, index*width-of-subindex, width-of-subindex)
@@ -244,9 +251,49 @@ private:
             newp->declElWidth(elwidth);
             newp->dtypeFrom(adtypep->subDTypep());  // Need to strip off array reference
             if (debug()>=9) newp->dumpTree(cout, "--SELBTn: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
-        else if (VN_IS(ddtypep, BasicDType)) {
+        else if (AstAssocArrayDType* adtypep = VN_CAST(ddtypep, AssocArrayDType)) {
+            // SELBIT(array, index) -> ASSOCSEL(array, index)
+            AstNode* subp = rhsp;
+            AstAssocSel* newp = new AstAssocSel(nodep->fileline(),
+                                                fromp, subp);
+            newp->dtypeFrom(adtypep->subDTypep());  // Need to strip off array reference
+            if (debug()>=9) newp->dumpTree(cout, "--SELBTn: ");
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
+        }
+        else if (AstDynArrayDType* adtypep = VN_CAST(ddtypep, DynArrayDType)) {
+            // SELBIT(array, index) -> CMETHODCALL(queue, "at", index)
+            AstNode* subp = rhsp;
+            AstCMethodHard* newp = new AstCMethodHard(nodep->fileline(),
+                                                      fromp, "at", subp);
+            newp->dtypeFrom(adtypep->subDTypep());  // Need to strip off queue reference
+            if (debug()>=9) newp->dumpTree(cout, "--SELBTq: ");
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
+        }
+        else if (AstQueueDType* adtypep = VN_CAST(ddtypep, QueueDType)) {
+            // SELBIT(array, index) -> CMETHODCALL(queue, "at", index)
+            AstNode* subp = rhsp;
+            AstCMethodHard* newp = new AstCMethodHard(nodep->fileline(),
+                                                      fromp, "at", subp);
+            newp->dtypeFrom(adtypep->subDTypep());  // Need to strip off queue reference
+            if (debug()>=9) newp->dumpTree(cout, "--SELBTq: ");
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
+        }
+        else if (VN_IS(ddtypep, BasicDType) && ddtypep->isString()) {
+            // SELBIT(string, index) -> GETC(string, index)
+            AstNodeVarRef* varrefp = VN_CAST(fromp, NodeVarRef);
+            if (!varrefp) nodep->v3error("Unsupported: String array operation on non-variable");
+            AstNode* newp;
+            if (varrefp && varrefp->lvalue()) {
+                newp = new AstGetcRefN(nodep->fileline(), fromp, rhsp);
+            } else {
+                newp = new AstGetcN(nodep->fileline(), fromp, rhsp);
+            }
+            UINFO(6, "   new " << newp << endl);
+            nodep->replaceWith(newp);
+            VL_DO_DANGLING(pushDeletep(nodep), nodep);
+        } else if (VN_IS(ddtypep, BasicDType)) {
             // SELBIT(range, index) -> SEL(array, index, 1)
             AstSel* newp = new AstSel(nodep->fileline(),
                                       fromp,
@@ -256,9 +303,9 @@ private:
             newp->declRange(fromRange);
             UINFO(6,"   new "<<newp<<endl);
             if (debug()>=9) newp->dumpTree(cout, "--SELBTn: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
-        else if (VN_IS(ddtypep, NodeClassDType)) {  // It's packed, so a bit from the packed struct
+        else if (VN_IS(ddtypep, NodeUOrStructDType)) {  // A bit from the packed struct
             // SELBIT(range, index) -> SEL(array, index, 1)
             AstSel* newp = new AstSel(nodep->fileline(),
                                       fromp,
@@ -268,17 +315,18 @@ private:
             newp->declRange(fromRange);
             UINFO(6,"   new "<<newp<<endl);
             if (debug()>=9) newp->dumpTree(cout, "--SELBTn: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         else {  // NULL=bad extract, or unknown node type
-            nodep->v3error("Illegal bit or array select; type already selected, or bad dimension: type is"
-                           <<fromdata.m_errp->prettyName());
+            nodep->v3error("Illegal bit or array select; type already selected, or bad dimension: "
+                           << "data type is" << fromdata.m_errp->prettyDTypeNameQ());
             // How to recover?  We'll strip a dimension.
-            nodep->replaceWith(fromp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(fromp);
+            VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
-        if (!rhsp->backp()) { pushDeletep(rhsp); VL_DANGLING(rhsp); }
+        if (!rhsp->backp()) { VL_DO_DANGLING(pushDeletep(rhsp), rhsp); }
     }
-    virtual void visit(AstSelExtract* nodep) {
+    virtual void visit(AstSelExtract* nodep) VL_OVERRIDE {
         // Select of a range specified part of an array, i.e. "array[2:3]"
         // SELEXTRACT(from,msb,lsb) -> SEL(from, lsb, 1+msb-lsb)
         // This select style has a (msb or lsb) and width
@@ -303,15 +351,15 @@ private:
             // Slice extraction
             if (fromRange.elements() == elem
                 && fromRange.lo() == lsb) {  // Extracting whole of original array
-                nodep->replaceWith(fromp); pushDeletep(nodep); VL_DANGLING(nodep);
+                nodep->replaceWith(fromp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
             } else if (fromRange.elements() == 1) {  // Extracting single element
                 AstArraySel* newp = new AstArraySel(nodep->fileline(), fromp, lsbp);
-                nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+                nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
             } else {  // Slice
                 AstSliceSel* newp = new AstSliceSel(nodep->fileline(), fromp,
                                                     VNumRange(VNumRange::LeftRight(),
                                                               msb, lsb));
-                nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+                nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
             }
         }
         else if (AstPackArrayDType* adtypep = VN_CAST(ddtypep, PackArrayDType)) {
@@ -343,7 +391,7 @@ private:
             newp->dtypeFrom(sliceDType(adtypep, msb, lsb));
             //if (debug()>=9) newp->dumpTree(cout, "--EXTBTn: ");
             UASSERT_OBJ(newp->widthMin() == newp->widthConst(), nodep, "Width mismatch");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         else if (VN_IS(ddtypep, BasicDType)) {
             if (fromRange.littleEndian()) {
@@ -365,9 +413,9 @@ private:
             newp->declRange(fromRange);
             UINFO(6,"   new "<<newp<<endl);
             //if (debug()>=9) newp->dumpTree(cout, "--SELEXnew: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
-        else if (VN_IS(ddtypep, NodeClassDType)) {
+        else if (VN_IS(ddtypep, NodeUOrStructDType)) {
             // Classes aren't little endian
             if (lsb > msb) {
                 nodep->v3error("["<<msb<<":"<<lsb<<"] Range extract has backward bit ordering, perhaps you wanted ["
@@ -384,19 +432,20 @@ private:
             newp->declRange(fromRange);
             UINFO(6,"   new "<<newp<<endl);
             //if (debug()>=9) newp->dumpTree(cout, "--SELEXnew: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         else {  // NULL=bad extract, or unknown node type
-            nodep->v3error("Illegal range select; type already selected, or bad dimension: type is "
-                           <<fromdata.m_errp->prettyName());
-            UINFO(1,"    Related ddtype: "<<ddtypep<<endl);
+            nodep->v3error("Illegal range select; type already selected, or bad dimension: "
+                           << "data type is " << fromdata.m_errp->prettyDTypeNameQ());
+            UINFO(1, "    Related ddtype: " << ddtypep << endl);
             // How to recover?  We'll strip a dimension.
-            nodep->replaceWith(fromp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(fromp);
+            VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         // delete whatever we didn't use in reconstruction
-        if (!fromp->backp()) { pushDeletep(fromp); VL_DANGLING(fromp); }
-        if (!msbp->backp()) { pushDeletep(msbp); VL_DANGLING(msbp); }
-        if (!lsbp->backp()) { pushDeletep(lsbp); VL_DANGLING(lsbp); }
+        if (!fromp->backp()) { VL_DO_DANGLING(pushDeletep(fromp), fromp); }
+        if (!msbp->backp()) { VL_DO_DANGLING(pushDeletep(msbp), msbp); }
+        if (!lsbp->backp()) { VL_DO_DANGLING(pushDeletep(lsbp), lsbp); }
     }
 
     void replaceSelPlusMinus(AstNodePreSel* nodep) {
@@ -421,8 +470,8 @@ private:
         VNumRange fromRange = fromdata.m_fromRange;
         if (VN_IS(ddtypep, BasicDType)
             || VN_IS(ddtypep, PackArrayDType)
-            || (VN_IS(ddtypep, NodeClassDType)
-                && VN_CAST(ddtypep, NodeClassDType)->packedUnsup())) {
+            || (VN_IS(ddtypep, NodeUOrStructDType)
+                && VN_CAST(ddtypep, NodeUOrStructDType)->packedUnsup())) {
             int elwidth = 1;
             AstNode* newwidthp = widthp;
             if (const AstPackArrayDType* adtypep = VN_CAST(ddtypep, PackArrayDType)) {
@@ -457,30 +506,31 @@ private:
             newp->declElWidth(elwidth);
             UINFO(6,"   new "<<newp<<endl);
             if (debug()>=9) newp->dumpTree(cout, "--SELNEW: ");
-            nodep->replaceWith(newp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(newp); VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         else {  // NULL=bad extract, or unknown node type
-            nodep->v3error("Illegal +: or -: select; type already selected, or bad dimension: type is "
-                           <<fromdata.m_errp->prettyTypeName());
+            nodep->v3error("Illegal +: or -: select; type already selected, or bad dimension: "
+                           << "data type is " << fromdata.m_errp->prettyDTypeNameQ());
             // How to recover?  We'll strip a dimension.
-            nodep->replaceWith(fromp); pushDeletep(nodep); VL_DANGLING(nodep);
+            nodep->replaceWith(fromp);
+            VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         // delete whatever we didn't use in reconstruction
-        if (!fromp->backp()) { pushDeletep(fromp); VL_DANGLING(fromp); }
-        if (!rhsp->backp()) { pushDeletep(rhsp); VL_DANGLING(rhsp); }
-        if (!widthp->backp()) { pushDeletep(widthp); VL_DANGLING(widthp); }
+        if (!fromp->backp()) { VL_DO_DANGLING(pushDeletep(fromp), fromp); }
+        if (!rhsp->backp()) { VL_DO_DANGLING(pushDeletep(rhsp), rhsp); }
+        if (!widthp->backp()) { VL_DO_DANGLING(pushDeletep(widthp), widthp); }
     }
-    virtual void visit(AstSelPlus* nodep) {
+    virtual void visit(AstSelPlus* nodep) VL_OVERRIDE {
         replaceSelPlusMinus(nodep);
     }
-    virtual void visit(AstSelMinus* nodep) {
+    virtual void visit(AstSelMinus* nodep) VL_OVERRIDE {
         replaceSelPlusMinus(nodep);
     }
-    // If adding new visitors, insure V3Width's visit(TYPE) calls into here
+    // If adding new visitors, ensure V3Width's visit(TYPE) calls into here
 
     //--------------------
     // Default
-    virtual void visit(AstNode* nodep) {  // LCOV_EXCL_LINE
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {  // LCOV_EXCL_LINE
         // See notes above; we never iterate
         nodep->v3fatalSrc("Shouldn't iterate in V3WidthSel");
     }

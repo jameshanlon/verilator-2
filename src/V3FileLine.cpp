@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Error handling
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -120,6 +120,7 @@ void VFileContent::pushText(const string& text) {
 
 string VFileContent::getLine(int lineno) const {
     // Return error text rather than asserting so the user isn't left without a message
+    // cppcheck-suppress negativeContainerIndex
     if (VL_UNCOVERABLE(lineno < 0 || lineno >= (int)m_lines.size())) {
         if (debug() || v3Global.opt.debugCheck()) {
             return ("%Error-internal-contents-bad-ct"+cvtToStr(m_id)
@@ -158,6 +159,15 @@ FileLine::FileLine(FileLine::EmptySecret) {
     }
 }
 
+const string FileLine::xmlDetailedLocation() const {
+    return "loc=\"" +
+        cvtToStr(filenameLetters()) + "," +
+        cvtToStr(firstLineno()) + "," +
+        cvtToStr(firstColumn()) + "," +
+        cvtToStr(lastLineno()) + "," +
+        cvtToStr(lastColumn()) + "\"";
+}
+
 string FileLine::lineDirectiveStrg(int enterExit) const {
     char numbuf[20]; sprintf(numbuf, "%d", lastLineno());
     char levelbuf[20]; sprintf(levelbuf, "%d", enterExit);
@@ -175,26 +185,38 @@ void FileLine::lineDirective(const char* textp, int& enterExitRef) {
     while (*textp && (isspace(*textp) || *textp=='"')) textp++;
 
     // Grab linenumber
-    const char *ln = textp;
+    bool fail = false;
+    const char* ln = textp;
     while (*textp && !isspace(*textp)) textp++;
     if (isdigit(*ln)) {
         lineno(atoi(ln));
-    }
-    while (*textp && (isspace(*textp) || *textp=='"')) textp++;
+    } else fail = true;
+    while (*textp && (isspace(*textp))) textp++;
+    if (*textp != '"') fail = true;
+    while (*textp && (isspace(*textp) || *textp == '"')) textp++;
 
     // Grab filename
-    const char *fn = textp;
+    const char* fn = textp;
     while (*textp && !(isspace(*textp) || *textp=='"')) textp++;
     if (textp != fn) {
         string strfn = fn;
         strfn = strfn.substr(0, textp-fn);
         filename(strfn);
-    }
+    } else fail = true;
 
     // Grab level
     while (*textp && (isspace(*textp) || *textp=='"')) textp++;
-    if (isdigit(*textp)) enterExitRef = atoi(textp);
-    else enterExitRef = 0;
+    if (isdigit(*textp)) {
+        enterExitRef = atoi(textp);
+        if (enterExitRef >= 3) fail = true;
+    } else {
+        enterExitRef = 0;
+        fail = true;
+    }
+
+    if (fail && v3Global.opt.pedantic()) {
+        v3error("`line was not properly formed with '`line number \"filename\" level'\n");
+    }
 
     //printf ("PPLINE %d '%s'\n", s_lineno, s_filename.c_str());
 }
@@ -329,7 +351,10 @@ void FileLine::v3errorEnd(std::ostringstream& str, const string& locationStr) {
     if (!locationStr.empty()) {
         lstr<<std::setw(ascii().length())<<" "<<": "<<locationStr;
     }
-    if (warnIsOff(V3Error::errorCode())) V3Error::suppressThisWarning();
+    if (warnIsOff(V3Error::errorCode())
+        || V3Config::waive(this, V3Error::errorCode(), str.str())) {
+        V3Error::suppressThisWarning();
+    }
     else if (!V3Error::errorContexted()) nsstr<<warnContextPrimary();
     V3Error::v3errorEnd(nsstr, lstr.str());
 }
@@ -367,6 +392,7 @@ string FileLine::prettySource() const {
 
 string FileLine::warnContext(bool secondary) const {
     V3Error::errorContexted(true);
+    if (!v3Global.opt.context()) return "";
     string out = "";
     if (firstLineno()==lastLineno() && firstColumn()) {
         string sourceLine = prettySource();

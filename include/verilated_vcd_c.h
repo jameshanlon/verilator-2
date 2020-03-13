@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -43,7 +43,8 @@ private:
     int m_fd;  ///< File descriptor we're writing to
 public:
     // METHODS
-    VerilatedVcdFile() : m_fd(0) {}
+    VerilatedVcdFile()
+        : m_fd(0) {}
     virtual ~VerilatedVcdFile() {}
     virtual bool open(const std::string& name) VL_MT_UNSAFE;
     virtual void close() VL_MT_UNSAFE;
@@ -57,10 +58,11 @@ public:
 class VerilatedVcdSig {
 protected:
     friend class VerilatedVcd;
-    vluint32_t          m_code;         ///< VCD file code number
-    int                 m_bits;         ///< Size of value in bits
+    vluint32_t m_code;  ///< VCD file code number
+    int m_bits;  ///< Size of value in bits
     VerilatedVcdSig(vluint32_t code, int bits)
-        : m_code(code), m_bits(bits) {}
+        : m_code(code)
+        , m_bits(bits) {}
 public:
     ~VerilatedVcdSig() {}
 };
@@ -101,9 +103,9 @@ private:
     typedef std::vector<VerilatedVcdSig>  SigVec;
     SigVec              m_sigs;         ///< Pointer to signal information
     typedef std::vector<VerilatedVcdCallInfo*>  CallbackVec;
-    CallbackVec         m_callbacks;    ///< Routines to perform dumping
+    CallbackVec m_callbacks;  ///< Routines to perform dumping
     typedef std::map<std::string,std::string>  NameMap;
-    NameMap*            m_namemapp;     ///< List of names for the header
+    NameMap* m_namemapp;  ///< List of names for the header
 
     VerilatedAssertOneThread m_assertOne;  ///< Assert only called from single thread
 
@@ -112,9 +114,7 @@ private:
     inline void bufferCheck() {
         // Flush the write buffer if there's not enough space left for new information
         // We only call this once per vector, so we need enough slop for a very wide "b###" line
-        if (VL_UNLIKELY(m_writep > m_wrFlushp)) {
-            bufferFlush();
-        }
+        if (VL_UNLIKELY(m_writep > m_wrFlushp)) { bufferFlush(); }
     }
     void closePrev();
     void closeErr();
@@ -125,8 +125,8 @@ private:
     void printStr(const char* str);
     void printQuad(vluint64_t n);
     void printTime(vluint64_t timeui);
-    void declare(vluint32_t code, const char* name, const char* wirep,
-                 int arraynum, bool tri, bool bussed, int msb, int lsb);
+    void declare(vluint32_t code, const char* name, const char* wirep, bool array, int arraynum,
+                 bool tri, bool bussed, int msb, int lsb);
 
     void dumpHeader();
     void dumpPrep(vluint64_t timeui);
@@ -157,18 +157,20 @@ private:
     // CONSTRUCTORS
     VL_UNCOPYABLE(VerilatedVcd);
 public:
-    explicit VerilatedVcd(VerilatedVcdFile* filep=NULL);
+    explicit VerilatedVcd(VerilatedVcdFile* filep = NULL);
     ~VerilatedVcd();
+    /// Routines can only be called from one thread; allow next call from different thread
+    void changeThread() { m_assertOne.changeThread(); }
 
     // ACCESSORS
     /// Set size in megabytes after which new file should be created
-    void rolloverMB(vluint64_t rolloverMB) { m_rolloverMB=rolloverMB; }
+    void rolloverMB(vluint64_t rolloverMB) { m_rolloverMB = rolloverMB; }
     /// Is file open?
     bool isOpen() const { return m_isOpen; }
     /// Change character that splits scopes.  Note whitespace are ALWAYS escapes.
     void scopeEscape(char flag) { m_scopeEscape = flag; }
     /// Is this an escape?
-    inline bool isScopeEscape(char c) { return isspace(c) || c==m_scopeEscape; }
+    inline bool isScopeEscape(char c) { return isspace(c) || c == m_scopeEscape; }
 
     // METHODS
     void open(const char* filename) VL_MT_UNSAFE_ONE;  ///< Open the file; call isOpen() to see if errors
@@ -201,16 +203,16 @@ public:
     /// Inside dumping routines, declare a module
     void module(const std::string& name);
     /// Inside dumping routines, declare a signal
-    void declBit      (vluint32_t code, const char* name, int arraynum);
-    void declBus      (vluint32_t code, const char* name, int arraynum, int msb, int lsb);
-    void declQuad     (vluint32_t code, const char* name, int arraynum, int msb, int lsb);
-    void declArray    (vluint32_t code, const char* name, int arraynum, int msb, int lsb);
-    void declTriBit   (vluint32_t code, const char* name, int arraynum);
-    void declTriBus   (vluint32_t code, const char* name, int arraynum, int msb, int lsb);
-    void declTriQuad  (vluint32_t code, const char* name, int arraynum, int msb, int lsb);
-    void declTriArray (vluint32_t code, const char* name, int arraynum, int msb, int lsb);
-    void declDouble   (vluint32_t code, const char* name, int arraynum);
-    void declFloat    (vluint32_t code, const char* name, int arraynum);
+    void declBit(     vluint32_t code, const char* name, bool array, int arraynum);
+    void declBus(     vluint32_t code, const char* name, bool array, int arraynum, int msb, int lsb);
+    void declQuad(    vluint32_t code, const char* name, bool array, int arraynum, int msb, int lsb);
+    void declArray(   vluint32_t code, const char* name, bool array, int arraynum, int msb, int lsb);
+    void declTriBit(  vluint32_t code, const char* name, bool array, int arraynum);
+    void declTriBus(  vluint32_t code, const char* name, bool array, int arraynum, int msb, int lsb);
+    void declTriQuad( vluint32_t code, const char* name, bool array, int arraynum, int msb, int lsb);
+    void declTriArray(vluint32_t code, const char* name, bool array, int arraynum, int msb, int lsb);
+    void declDouble(  vluint32_t code, const char* name, bool array, int arraynum);
+    void declFloat(   vluint32_t code, const char* name, bool array, int arraynum);
     //  ... other module_start for submodules (based on cell name)
 
     /// Inside dumping routines, dump one signal
@@ -233,20 +235,31 @@ public:
         (*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code]))) = newval;
         *m_writep++='b';
         for (int bit=bits-1; bit>=0; --bit) {
-            *m_writep++=((newval&(1ULL<<bit))?'1':'0');
+            *m_writep++ = ((newval & (VL_ULL(1) << bit)) ? '1' : '0');
         }
         *m_writep++=' '; printCode(code); *m_writep++='\n';
         bufferCheck();
     }
     void fullArray(vluint32_t code, const vluint32_t* newval, int bits) {
-        for (int word=0; word<(((bits-1)/32)+1); ++word) {
-            m_sigs_oldvalp[code+word] = newval[word];
+        for (int word = 0; word < (((bits - 1) / 32) + 1); ++word) {
+            m_sigs_oldvalp[code + word] = newval[word];
         }
-        *m_writep++='b';
-        for (int bit=bits-1; bit>=0; --bit) {
-            *m_writep++=((newval[(bit/32)]&(1L<<(bit&0x1f)))?'1':'0');
+        *m_writep++ = 'b';
+        for (int bit = bits - 1; bit >= 0; --bit) {
+            *m_writep++ = ((newval[(bit / 32)] & (1L << (bit & 0x1f))) ? '1' : '0');
         }
-        *m_writep++=' '; printCode(code); *m_writep++='\n';
+        *m_writep ++= ' '; printCode(code); *m_writep ++= '\n';
+        bufferCheck();
+    }
+    void fullArray(vluint32_t code, const vluint64_t* newval, int bits) {
+        for (int word = 0; word < (((bits - 1) / 64) + 1); ++word) {
+            m_sigs_oldvalp[code + word] = newval[word];
+        }
+        *m_writep ++= 'b';
+        for (int bit = bits - 1; bit >= 0; --bit) {
+            *m_writep++ = ((newval[(bit / 64)] & (VL_ULL(1) << (bit & 0x3f))) ? '1' : '0');
+        }
+        *m_writep ++= ' '; printCode(code); *m_writep ++= '\n';
         bufferCheck();
     }
     void fullTriBit(vluint32_t code, const vluint32_t newval, const vluint32_t newtri) {
@@ -274,8 +287,8 @@ public:
         (*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code+1]))) = newtri;
         *m_writep++='b';
         for (int bit=bits-1; bit>=0; --bit) {
-            *m_writep++ = "01zz"[((newval >> bit)&1ULL)
-                                 | (((newtri >> bit)&1ULL)<<1ULL)];
+            *m_writep++ = "01zz"[((newval >> bit) & VL_ULL(1))
+                                 | (((newtri >> bit) & VL_ULL(1)) << VL_ULL(1))];
         }
         *m_writep++=' '; printCode(code); *m_writep++='\n';
         bufferCheck();
@@ -331,7 +344,7 @@ public:
     inline void chgBus(vluint32_t code, const vluint32_t newval, int bits) {
         vluint32_t diff = m_sigs_oldvalp[code] ^ newval;
         if (VL_UNLIKELY(diff)) {
-            if (VL_UNLIKELY(bits==32 || (diff & ((1U<<bits)-1) ))) {
+            if (VL_UNLIKELY(bits == 32 || (diff & ((1U << bits) - 1)))) {
                 fullBus(code, newval, bits);
             }
         }
@@ -339,15 +352,23 @@ public:
     inline void chgQuad(vluint32_t code, const vluint64_t newval, int bits) {
         vluint64_t diff = (*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code]))) ^ newval;
         if (VL_UNLIKELY(diff)) {
-            if (VL_UNLIKELY(bits==64 || (diff & ((1ULL<<bits)-1) ))) {
+            if (VL_UNLIKELY(bits == 64 || (diff & ((VL_ULL(1) << bits) - 1)))) {
                 fullQuad(code, newval, bits);
             }
         }
     }
     inline void chgArray(vluint32_t code, const vluint32_t* newval, int bits) {
-        for (int word=0; word<(((bits-1)/32)+1); ++word) {
-            if (VL_UNLIKELY(m_sigs_oldvalp[code+word] ^ newval[word])) {
-                fullArray(code,newval,bits);
+        for (int word = 0; word < (((bits - 1) / 32) + 1); ++word) {
+            if (VL_UNLIKELY(m_sigs_oldvalp[code + word] ^ newval[word])) {
+                fullArray(code, newval, bits);
+                return;
+            }
+        }
+    }
+    inline void chgArray(vluint32_t code, const vluint64_t* newval, int bits) {
+        for (int word = 0; word < (((bits - 1) / 64) + 1); ++word) {
+            if (VL_UNLIKELY(m_sigs_oldvalp[code + word] ^ newval[word])) {
+                fullArray(code, newval, bits);
                 return;
             }
         }
@@ -379,7 +400,7 @@ public:
         vluint64_t diff = ( ((*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code]))) ^ newval)
                             | ((*(reinterpret_cast<vluint64_t*>(&m_sigs_oldvalp[code+1]))) ^ newtri));
         if (VL_UNLIKELY(diff)) {
-            if (VL_UNLIKELY(bits==64 || (diff & ((1ULL<<bits)-1) ))) {
+            if (VL_UNLIKELY(bits == 64 || (diff & ((VL_ULL(1) << bits) - 1)))) {
                 fullTriQuad(code, newval, newtri, bits);
             }
         }
@@ -424,8 +445,11 @@ class VerilatedVcdC {
     // CONSTRUCTORS
     VL_UNCOPYABLE(VerilatedVcdC);
 public:
-    explicit VerilatedVcdC(VerilatedVcdFile* filep=NULL) : m_sptrace(filep) {}
-    ~VerilatedVcdC() {}
+    explicit VerilatedVcdC(VerilatedVcdFile* filep = NULL)
+        : m_sptrace(filep) {}
+    ~VerilatedVcdC() { close(); }
+    /// Routines can only be called from one thread; allow next call from different thread
+    void changeThread() { spTrace()->changeThread(); }
 public:
     // ACCESSORS
     /// Is file open?
@@ -438,7 +462,7 @@ public:
     /// Continue a VCD dump by rotating to a new file name
     /// The header is only in the first file created, this allows
     /// "cat" to be used to combine the header plus any number of data files.
-    void openNext(bool incFilename=true) VL_MT_UNSAFE_ONE { m_sptrace.openNext(incFilename); }
+    void openNext(bool incFilename = true) VL_MT_UNSAFE_ONE { m_sptrace.openNext(incFilename); }
     /// Set size in megabytes after which new file should be created
     void rolloverMB(size_t rolloverMB) { m_sptrace.rolloverMB(rolloverMB); }
     /// Close dump

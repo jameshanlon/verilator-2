@@ -1,8 +1,8 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
 # See copyright, etc in below POD section.
 ######################################################################
 
-require 5.006_001;
+use warnings;
 use Getopt::Long;
 use IO::File;
 use Pod::Usage;
@@ -137,6 +137,9 @@ sub _suppress {
 
     return undef if $filename eq "*";
 
+    # Cleanup for e.g. ../V3AstNodes.h
+    $filename = "src/$1" if $filename =~ m!^\.\./(.*)!;
+
     # Specific suppressions
     return 1 if $id eq "missingInclude" && $filename =~ m!systemc.h!;
     return 1 if $id eq "missingInclude" && $filename =~ m!svdpi.h!;
@@ -216,11 +219,11 @@ Print the version number and exit.
 
 =head1 DISTRIBUTION
 
-This is part of the L<http://www.veripool.org/> free Verilog EDA software
+This is part of the L<https://www.veripool.org/> free Verilog EDA software
 tool suite.  The latest version is available from CPAN and from
-L<http://www.veripool.org/>.
+L<https://www.veripool.org/>.
 
-Copyright 2014-2019 by Wilson Snyder.  This package is free software; you
+Copyright 2014-2020 by Wilson Snyder.  This package is free software; you
 can redistribute it and/or modify it under the terms of either the GNU
 Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 

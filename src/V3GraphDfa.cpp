@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Graph optimizations
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2005-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2005-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -354,7 +354,7 @@ private:
         for (V3GraphVertex* nextp,*vertexp = m_graphp->verticesBeginp(); vertexp; vertexp=nextp) {
             nextp = vertexp->verticesNextp();
             if (nfaState(vertexp)) {
-                vertexp->unlinkDelete(m_graphp); VL_DANGLING(vertexp);
+                VL_DO_DANGLING(vertexp->unlinkDelete(m_graphp), vertexp);
             }
         }
 
@@ -384,7 +384,11 @@ void DfaGraph::nfaToDfa() {
 class DfaGraphReduce : GraphAlg<> {
 private:
     // METHODS
+#ifdef VL_CPPCHECK
+    static int debug() { return 9; }
+#else
     static int debug() { return 0; }
+#endif
     DfaGraph* graphp() { return static_cast<DfaGraph*>(m_graphp); }
 
     bool isDead(DfaVertex* vertexp) {
@@ -405,7 +409,7 @@ private:
                 if (vvertexp->accepting()) {
                     for (V3GraphEdge* nextp,*edgep = vertexp->outBeginp(); edgep; edgep=nextp) {
                         nextp = edgep->outNextp();
-                        edgep->unlinkDelete(); VL_DANGLING(edgep);
+                        VL_DO_DANGLING(edgep->unlinkDelete(), edgep);
                     }
                 }
             }
@@ -441,7 +445,7 @@ private:
         for (V3GraphVertex* nextp,*vertexp = m_graphp->verticesBeginp(); vertexp; vertexp=nextp) {
             nextp = vertexp->verticesNextp();
             if (!vertexp->user()) {
-                vertexp->unlinkDelete(m_graphp); VL_DANGLING(vertexp);
+                VL_DO_DANGLING(vertexp->unlinkDelete(m_graphp), vertexp);
             }
         }
     }
@@ -483,7 +487,7 @@ private:
                     }
                 }
                 // Transitions to this state removed by the unlink function
-                vertexp->unlinkDelete(m_graphp); VL_DANGLING(vertexp);
+                VL_DO_DANGLING(vertexp->unlinkDelete(m_graphp), vertexp);
             }
         }
     }
@@ -562,7 +566,7 @@ private:
                             DfaVertex* tovertexp = static_cast<DfaVertex*>(edgep->top());
                             if (tovertexp->accepting()) {
                                 new DfaEdge(graphp(), vvertexp, m_tempNewerReject, vedgep);
-                                edgep->unlinkDelete(); VL_DANGLING(edgep);
+                                VL_DO_DANGLING(edgep->unlinkDelete(), edgep);
                             }
 
                             // NOT of all values goes to accept
@@ -591,10 +595,11 @@ public:
         add_complement_edges();
         if (debug()>=6) m_graphp->dumpDotFilePrefixed("comp_preswap");
 
-        m_tempNewerReject->unlinkDelete(graphp()); m_tempNewerReject = NULL;
+        VL_DO_CLEAR(m_tempNewerReject->unlinkDelete(graphp()), m_tempNewerReject = NULL);
         if (debug()>=6) m_graphp->dumpDotFilePrefixed("comp_out");
     }
     ~DfaGraphComplement() {}
+    VL_UNCOPYABLE(DfaGraphComplement);
 };
 
 void DfaGraph::dfaComplement() {

@@ -3,11 +3,11 @@
 // DESCRIPTION: Verilator: Dependency graph iterator. Iterates over nodes
 //                         in any DAG, following dependency order.
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -95,9 +95,9 @@ private:
 
 public:
     // CONSTRUCTORS
-    GraphStream(const V3Graph* graphp,
-                GraphWay way = GraphWay::FORWARD,
-                const T_Compare& lessThan = T_Compare())
+    explicit GraphStream(const V3Graph* graphp,
+                         GraphWay way = GraphWay::FORWARD,
+                         const T_Compare& lessThan = T_Compare())
         // NOTE: Perhaps REVERSE way should also reverse the sense of the
         // lessThan function? For now the only usage of REVERSE is not
         // sensitive to its lessThan at all, so it doesn't matter.

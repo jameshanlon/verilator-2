@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Netlist (top level) functions
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -54,8 +54,8 @@ private:
             : m_comment(comment), m_varRefp(vp), m_chgRefp(cp) {}
         ~ToggleEnt() {}
         void cleanup() {
-            m_varRefp->deleteTree(); m_varRefp = NULL;
-            m_chgRefp->deleteTree(); m_chgRefp = NULL;
+            VL_DO_CLEAR(m_varRefp->deleteTree(), m_varRefp = NULL);
+            VL_DO_CLEAR(m_chgRefp->deleteTree(), m_chgRefp = NULL);
         }
     };
 
@@ -96,7 +96,8 @@ private:
     }
 
     AstCoverInc* newCoverInc(FileLine* fl, const string& hier,
-                             const string& page_prefix, const string& comment) {
+                             const string& page_prefix, const string& comment,
+                             const string& trace_var_name) {
         // For line coverage, we may have multiple if's on one line, so disambiguate if
         // everything is otherwise identical
         // (Don't set column otherwise as it may result in making bins not match up with
@@ -123,21 +124,46 @@ private:
         declp->hier(hier);
         m_modp->addStmtp(declp);
 
-        return new AstCoverInc(fl, declp);
+        AstCoverInc* incp = new AstCoverInc(fl, declp);
+        if (!trace_var_name.empty() && v3Global.opt.traceCoverage()) {
+            AstVar* varp = new AstVar(incp->fileline(),
+                                      AstVarType::MODULETEMP, trace_var_name,
+                                      incp->findUInt32DType());
+            varp->trace(true);
+            varp->fileline()->modifyWarnOff(V3ErrorCode::UNUSED, true);
+            m_modp->addStmtp(varp);
+            UINFO(5, "New coverage trace: "<<varp<<endl);
+            AstAssign* assp  = new AstAssign(
+                incp->fileline(),
+                new AstVarRef(incp->fileline(), varp, true),
+                new AstAdd(incp->fileline(),
+                           new AstVarRef(incp->fileline(), varp, false),
+                           new AstConst(incp->fileline(), AstConst::WidthedValue(), 32, 1)));
+            incp->addNext(assp);
+        }
+        return incp;
     }
-
+    string traceNameForLine(AstNode* nodep, const string& type) {
+        return "vlCoverageLineTrace_"+nodep->fileline()->filebasenameNoExt()
+            +"__"+cvtToStr(nodep->fileline()->lineno())
+            +"_"+type;
+    }
     // VISITORS - BOTH
-    virtual void visit(AstNodeModule* nodep) {
-        m_modp = nodep;
-        m_inModOff = nodep->isTop();  // Ignore coverage on top module; it's a shell we created
-        m_fileps.clear();
-        iterateChildren(nodep);
-        m_modp = NULL;
-        m_inModOff = true;
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
+        AstNodeModule* origModp = m_modp;
+        bool origInModOff = m_inModOff;
+        {
+            m_modp = nodep;
+            m_inModOff = nodep->isTop();  // Ignore coverage on top module; it's a shell we created
+            m_fileps.clear();
+            iterateChildren(nodep);
+        }
+        m_modp = origModp;
+        m_inModOff = origInModOff;
     }
 
     // VISITORS - TOGGLE COVERAGE
-    virtual void visit(AstNodeFTask* nodep) {
+    virtual void visit(AstNodeFTask* nodep) VL_OVERRIDE {
         bool oldtog = m_inToggleOff;
         {
             m_inToggleOff = true;
@@ -145,7 +171,7 @@ private:
         }
         m_inToggleOff = oldtog;
     }
-    virtual void visit(AstVar* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
         if (m_modp && !m_inModOff && !m_inToggleOff
             && nodep->fileline()->coverageOn() && v3Global.opt.coverageToggle()) {
@@ -190,7 +216,7 @@ private:
         AstCoverToggle* newp
             = new AstCoverToggle(varp->fileline(),
                                  newCoverInc(varp->fileline(), "", "v_toggle",
-                                             varp->name()+above.m_comment),
+                                             varp->name()+above.m_comment, ""),
                                  above.m_varRefp->cloneTree(true),
                                  above.m_chgRefp->cloneTree(true));
         m_modp->addStmtp(newp);
@@ -281,7 +307,7 @@ private:
     }
 
     // VISITORS - LINE COVERAGE
-    virtual void visit(AstIf* nodep) {  // Note not AstNodeIf; other types don't get covered
+    virtual void visit(AstIf* nodep) VL_OVERRIDE {  // Note not AstNodeIf; other types don't get covered
         UINFO(4," IF: "<<nodep<<endl);
         if (m_checkBlock) {
             // An else-if.  When we iterate the if, use "elsif" marking
@@ -294,9 +320,11 @@ private:
                 && nodep->fileline()->coverageOn() && v3Global.opt.coverageLine()) {  // if a "if" branch didn't disable it
                 UINFO(4,"   COVER: "<<nodep<<endl);
                 if (nodep->user1()) {
-                    nodep->addIfsp(newCoverInc(nodep->fileline(), "", "v_line", "elsif"));
+                    nodep->addIfsp(newCoverInc(nodep->fileline(), "", "v_line", "elsif",
+                                               traceNameForLine(nodep, "elsif")));
                 } else {
-                    nodep->addIfsp(newCoverInc(nodep->fileline(), "", "v_line", "if"));
+                    nodep->addIfsp(newCoverInc(nodep->fileline(), "", "v_line", "if",
+                                               traceNameForLine(nodep, "if")));
                 }
             }
             // Don't do empty else's, only empty if/case's
@@ -308,50 +336,53 @@ private:
                     UINFO(4,"   COVER: "<<nodep<<endl);
                     if (!elsif) {  // elsif done inside if()
                         nodep->addElsesp(newCoverInc(nodep->elsesp()->fileline(),
-                                                     "", "v_line", "else"));
+                                                     "", "v_line", "else",
+                                                     traceNameForLine(nodep, "else")));
                     }
                 }
             }
             m_checkBlock = true;  // Reset as a child may have cleared it
         }
     }
-    virtual void visit(AstCaseItem* nodep) {
+    virtual void visit(AstCaseItem* nodep) VL_OVERRIDE {
         UINFO(4," CASEI: "<<nodep<<endl);
         if (m_checkBlock && !m_inModOff
             && nodep->fileline()->coverageOn() && v3Global.opt.coverageLine()) {
             iterateAndNextNull(nodep->bodysp());
             if (m_checkBlock) {  // if the case body didn't disable it
                 UINFO(4,"   COVER: "<<nodep<<endl);
-                nodep->addBodysp(newCoverInc(nodep->fileline(), "", "v_line", "case"));
+                nodep->addBodysp(newCoverInc(nodep->fileline(), "", "v_line", "case",
+                                             traceNameForLine(nodep, "case")));
             }
             m_checkBlock = true;  // Reset as a child may have cleared it
         }
     }
-    virtual void visit(AstPslCover* nodep) {
-        UINFO(4," PSLCOVER: "<<nodep<<endl);
+    virtual void visit(AstCover* nodep) VL_OVERRIDE {
+        UINFO(4," COVER: "<<nodep<<endl);
         m_checkBlock = true;  // Always do cover blocks, even if there's a $stop
         iterateChildren(nodep);
         if (!nodep->coverincp()) {
             // Note the name may be overridden by V3Assert processing
-            nodep->coverincp(newCoverInc(nodep->fileline(), m_beginHier, "v_user", "cover"));
+            nodep->coverincp(newCoverInc(nodep->fileline(), m_beginHier, "v_user", "cover",
+                                         m_beginHier+"_vlCoverageUserTrace"));
         }
         m_checkBlock = true;  // Reset as a child may have cleared it
     }
-    virtual void visit(AstStop* nodep) {
+    virtual void visit(AstStop* nodep) VL_OVERRIDE {
         UINFO(4,"  STOP: "<<nodep<<endl);
         m_checkBlock = false;
     }
-    virtual void visit(AstPragma* nodep) {
+    virtual void visit(AstPragma* nodep) VL_OVERRIDE {
         if (nodep->pragType() == AstPragmaType::COVERAGE_BLOCK_OFF) {
             // Skip all NEXT nodes under this block, and skip this if/case branch
             UINFO(4,"  OFF: "<<nodep<<endl);
             m_checkBlock = false;
-            nodep->unlinkFrBack()->deleteTree(); VL_DANGLING(nodep);
+            VL_DO_DANGLING(nodep->unlinkFrBack()->deleteTree(), nodep);
         } else {
             if (m_checkBlock) iterateChildren(nodep);
         }
     }
-    virtual void visit(AstBegin* nodep) {
+    virtual void visit(AstBegin* nodep) VL_OVERRIDE {
         // Record the hierarchy of any named begins, so we can apply to user
         // coverage points.  This is because there may be cov points inside
         // generate blocks; each point should get separate consideration.
@@ -371,7 +402,7 @@ private:
     }
 
     // VISITORS - BOTH
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         // Default: Just iterate
         if (m_checkBlock) {
             iterateChildren(nodep);

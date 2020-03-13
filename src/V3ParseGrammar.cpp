@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Parse syntax tree
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -91,7 +91,7 @@ AstRange* V3ParseGrammar::scrubRange(AstNodeRange* nrangep) {
         nextp = VN_CAST(nodep->nextp(), NodeRange);
         if (!VN_IS(nodep, Range)) {
             nodep->v3error("Unsupported or syntax error: Unsized range in cell or other declaration");
-            nodep->unlinkFrBack(); nodep->deleteTree(); VL_DANGLING(nodep);
+            nodep->unlinkFrBack(); VL_DO_DANGLING(nodep->deleteTree(), nodep);
         }
     }
     if (nrangep && nrangep->nextp()) {
@@ -113,17 +113,29 @@ AstNodeDType* V3ParseGrammar::createArray(AstNodeDType* basep,
             AstNodeRange* prevp = VN_CAST(nrangep->backp(), NodeRange);
             if (prevp) nrangep->unlinkFrBack();
             AstRange* rangep = VN_CAST(nrangep, Range);
-            if (!rangep) {
-                UASSERT_OBJ(VN_IS(nrangep, UnsizedRange), nrangep,
-                            "Expected range or unsized range");
-                arrayp = new AstUnsizedArrayDType
-                    (nrangep->fileline(), VFlagChildDType(), arrayp);
-            } else if (isPacked) {
+            if (rangep && isPacked) {
                 arrayp = new AstPackArrayDType
                     (rangep->fileline(), VFlagChildDType(), arrayp, rangep);
-            } else {
+            } else if (VN_IS(nrangep, QueueRange)) {
+                arrayp = new AstQueueDType
+                    (nrangep->fileline(), VFlagChildDType(), arrayp, NULL);
+            } else if (rangep && (VN_IS(rangep->leftp(), Unbounded)
+                                  || VN_IS(rangep->rightp(), Unbounded))) {
+                arrayp = new AstQueueDType(nrangep->fileline(), VFlagChildDType(), arrayp,
+                                           rangep->rightp()->cloneTree(true));
+            } else if (rangep) {
                 arrayp = new AstUnpackArrayDType
                     (rangep->fileline(), VFlagChildDType(), arrayp, rangep);
+            } else if (VN_IS(nrangep, UnsizedRange)) {
+                arrayp = new AstUnsizedArrayDType
+                    (nrangep->fileline(), VFlagChildDType(), arrayp);
+            } else if (VN_IS(nrangep, AssocRange)) {
+                AstAssocRange* arangep = VN_CAST(nrangep, AssocRange);
+                AstNodeDType* keyp = arangep->keyDTypep(); keyp->unlinkFrBack();
+                arrayp = new AstAssocArrayDType
+                    (nrangep->fileline(), VFlagChildDType(), arrayp, keyp);
+            } else {
+                UASSERT_OBJ(0, nrangep, "Expected range or unsized range");
             }
             nrangep = prevp;
         }

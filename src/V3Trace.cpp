@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Waves tracing
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -341,8 +341,8 @@ private:
                                  AstVarType::MODULETEMP,
                                   "__Vm_traceActivity", newArrDtp);
         } else {
-            // For tighter code; round to next 32 bit point.
-            int activityBits = VL_WORDS_I(m_activityNumber)*VL_WORDSIZE;
+            // For tighter code; round to next word point.
+            int activityBits = VL_WORDS_I(m_activityNumber) * VL_EDATASIZE;
             newvarp = new AstVar(m_chgFuncp->fileline(), AstVarType::MODULETEMP,
                                  "__Vm_traceActivity", VFlagBitPacked(), activityBits);
         }
@@ -449,9 +449,7 @@ private:
                         break;
                     } else {
                         uint32_t acode = cfvertexp->activityCode();
-                        if (actset.find(acode) == actset.end()) {
-                            actset.insert(acode);
-                        }
+                        actset.insert(acode);
                     }
                 }
                 // If a trace doesn't have activity, it's constant, and we
@@ -587,7 +585,7 @@ private:
             m_fullSubStmts += EmitCBaseCounterVisitor(nodep).count();
         } else {
             // Duplicates don't need a TraceInc
-            pushDeletep(nodep); VL_DANGLING(nodep);
+            VL_DO_DANGLING(pushDeletep(nodep), nodep);
         }
         return incAddp;
     }
@@ -613,7 +611,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstNetlist* nodep) {
+    virtual void visit(AstNetlist* nodep) VL_OVERRIDE {
         m_code = 1;  // Multiple TopScopes will require fixing how code#s
         // are assigned as duplicate varscopes must result in the same tracing code#.
 
@@ -641,17 +639,17 @@ private:
         assignActivity();
         putTracesIntoTree();
     }
-    virtual void visit(AstNodeModule* nodep) {
+    virtual void visit(AstNodeModule* nodep) VL_OVERRIDE {
         if (nodep->isTop()) m_topModp = nodep;
         iterateChildren(nodep);
     }
-    virtual void visit(AstTopScope* nodep) {
+    virtual void visit(AstTopScope* nodep) VL_OVERRIDE {
         AstScope* scopep = nodep->scopep();
         UASSERT_OBJ(scopep, nodep, "No scope found on top level");
         m_highScopep = scopep;
         iterateChildren(nodep);
     }
-    virtual void visit(AstCCall* nodep) {
+    virtual void visit(AstCCall* nodep) VL_OVERRIDE {
         UINFO(8,"   CCALL "<<nodep<<endl);
         if (!m_finding && !nodep->user2()) {
             // See if there are other calls in same statement list;
@@ -669,7 +667,7 @@ private:
         }
         iterateChildren(nodep);
     }
-    virtual void visit(AstCFunc* nodep) {
+    virtual void visit(AstCFunc* nodep) VL_OVERRIDE {
         UINFO(8,"   CFUNC "<<nodep<<endl);
         if (nodep->funcType() == AstCFuncType::TRACE_INIT) {
             m_initFuncp = nodep;
@@ -693,7 +691,7 @@ private:
         iterateChildren(nodep);
         m_funcp = NULL;
     }
-    virtual void visit(AstTraceInc* nodep) {
+    virtual void visit(AstTraceInc* nodep) VL_OVERRIDE {
         UINFO(8,"   TRACE "<<nodep<<endl);
         UASSERT_OBJ(!m_finding, nodep, "Traces should have been removed in prev step.");
         nodep->unlinkFrBack();
@@ -706,7 +704,7 @@ private:
         iterateChildren(nodep);
         m_tracep = NULL;
     }
-    virtual void visit(AstVarRef* nodep) {
+    virtual void visit(AstVarRef* nodep) VL_OVERRIDE {
         if (m_tracep) {
             UASSERT_OBJ(nodep->varScopep(), nodep, "No var scope?");
             UASSERT_OBJ(!nodep->lvalue(), nodep, "Lvalue in trace?  Should be const.");
@@ -732,7 +730,7 @@ private:
         }
     }
     //--------------------
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 
@@ -756,7 +754,6 @@ public:
         m_chgSubStmts = 0;
         m_activityNumber = 0;
         m_code = 0;
-        m_finding = false;
         m_funcNum = 0;
         iterate(nodep);
     }

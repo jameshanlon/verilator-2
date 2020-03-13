@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Check for unused/undriven signals
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2004-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2004-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -44,10 +44,9 @@
 
 class UndrivenVarEntry {
     // MEMBERS
-    AstVar*             m_varp;         // Variable this tracks
-    bool                m_usedWhole;    // True if whole vector used
-    bool                m_drivenWhole;  // True if whole vector driven
-    std::vector<bool>   m_flags;        // Used/Driven on each subbit
+    AstVar* m_varp;  // Variable this tracks
+    std::vector<bool> m_wholeFlags;  // Used/Driven on whole vector
+    std::vector<bool> m_bitFlags;  // Used/Driven on each subbit
 
     enum { FLAG_USED = 0, FLAG_DRIVEN = 1, FLAGS_PER_BIT = 2 };
 
@@ -58,31 +57,35 @@ public:
     explicit UndrivenVarEntry(AstVar* varp) {  // Construction for when a var is used
         UINFO(9, "create "<<varp<<endl);
         m_varp = varp;
-        m_usedWhole = false;
-        m_drivenWhole = false;
-
-        m_flags.resize(varp->width()*FLAGS_PER_BIT);
-        for (int i=0; i<varp->width()*FLAGS_PER_BIT; i++) {
-            m_flags[i] = false;
+        m_wholeFlags.resize(FLAGS_PER_BIT);
+        for (int i = 0; i < FLAGS_PER_BIT; i++) {
+            m_wholeFlags[i] = false;
+        }
+        m_bitFlags.resize(varp->width() * FLAGS_PER_BIT);
+        for (int i = 0; i < varp->width() * FLAGS_PER_BIT; i++) {
+            m_bitFlags[i] = false;
         }
     }
     ~UndrivenVarEntry() {}
 
 private:
     // METHODS
-    inline bool bitNumOk(int bit) const { return bit>=0
-            && (bit*FLAGS_PER_BIT < static_cast<int>(m_flags.size())); }
-    inline bool usedFlag(int bit) const {
-        return m_usedWhole || m_flags[bit*FLAGS_PER_BIT + FLAG_USED]; }
-    inline bool drivenFlag(int bit) const {
-        return m_drivenWhole || m_flags[bit*FLAGS_PER_BIT + FLAG_DRIVEN]; }
+    bool bitNumOk(int bit) const {
+        return bit >= 0 && (bit * FLAGS_PER_BIT < static_cast<int>(m_bitFlags.size()));
+    }
+    bool usedFlag(int bit) const {
+        return m_wholeFlags[FLAG_USED] || m_bitFlags[bit * FLAGS_PER_BIT + FLAG_USED];
+    }
+    bool drivenFlag(int bit) const {
+        return m_wholeFlags[FLAG_DRIVEN] || m_bitFlags[bit * FLAGS_PER_BIT + FLAG_DRIVEN];
+    }
     enum BitNamesWhich { BN_UNUSED, BN_UNDRIVEN, BN_BOTH };
     string bitNames(BitNamesWhich which) {
         string bits;
         bool prev = false;
         int msb = 0;
         // bit==-1 loops below; we do one extra iteration so end with prev=false
-        for (int bit=(m_flags.size()/FLAGS_PER_BIT)-1; bit >= -1; --bit) {
+        for (int bit=(m_bitFlags.size()/FLAGS_PER_BIT)-1; bit >= -1; --bit) {
             if (bit>=0
                 && ((which == BN_UNUSED && !usedFlag(bit) && drivenFlag(bit))
                     || (which == BN_UNDRIVEN && usedFlag(bit) && !drivenFlag(bit))
@@ -109,38 +112,39 @@ private:
 public:
     void usedWhole() {
         UINFO(9, "set u[*] "<<m_varp->name()<<endl);
-        m_usedWhole = true;
+        m_wholeFlags[FLAG_USED] = true;
     }
     void drivenWhole() {
         UINFO(9, "set d[*] "<<m_varp->name()<<endl);
-        m_drivenWhole = true;
+        m_wholeFlags[FLAG_DRIVEN] = true;
     }
     void usedBit(int bit, int width) {
         UINFO(9, "set u["<<(bit+width-1)<<":"<<bit<<"] "<<m_varp->name()<<endl);
-        for (int i=0; i<width; i++) {
-            if (bitNumOk(bit+i)) {
-                m_flags[(bit+i)*FLAGS_PER_BIT + FLAG_USED] = true;
+        for (int i = 0; i < width; i++) {
+            if (bitNumOk(bit + i)) {
+                m_bitFlags[(bit + i) * FLAGS_PER_BIT + FLAG_USED] = true;
             }
         }
     }
     void drivenBit(int bit, int width) {
         UINFO(9, "set d["<<(bit+width-1)<<":"<<bit<<"] "<<m_varp->name()<<endl);
-        for (int i=0; i<width; i++) {
-            if (bitNumOk(bit+i)) {
-                m_flags[(bit+i)*FLAGS_PER_BIT + FLAG_DRIVEN] = true;
+        for (int i = 0; i < width; i++) {
+            if (bitNumOk(bit + i)) {
+                m_bitFlags[(bit + i) * FLAGS_PER_BIT + FLAG_DRIVEN] = true;
             }
         }
     }
     bool isUsedNotDrivenBit(int bit, int width) const {
-        for (int i=0; i<width; i++) {
-            if (bitNumOk(bit+i)
-                && (m_usedWhole || m_flags[(bit+i)*FLAGS_PER_BIT + FLAG_USED])
-                && !(m_drivenWhole || m_flags[(bit+i)*FLAGS_PER_BIT + FLAG_DRIVEN])) return true;
+        for (int i = 0; i < width; i++) {
+            if (bitNumOk(bit + i)
+                && (m_wholeFlags[FLAG_USED] || m_bitFlags[(bit + i) * FLAGS_PER_BIT + FLAG_USED])
+                && !(m_wholeFlags[FLAG_DRIVEN] || m_bitFlags[(bit + i) * FLAGS_PER_BIT + FLAG_DRIVEN]))
+                return true;
         }
         return false;
     }
     bool isUsedNotDrivenAny() const {
-        return isUsedNotDrivenBit(0, m_flags.size()/FLAGS_PER_BIT);
+        return isUsedNotDrivenBit(0, m_bitFlags.size() / FLAGS_PER_BIT);
     }
     bool unusedMatch(AstVar* nodep) {
         string regexp = v3Global.opt.unusedRegexp();
@@ -154,12 +158,12 @@ public:
         if (!nodep->isParam() && !nodep->isGenVar()) {
             bool allU = true;
             bool allD = true;
-            bool anyU = m_usedWhole;
-            bool anyD = m_drivenWhole;
+            bool anyU = m_wholeFlags[FLAG_USED];
+            bool anyD = m_wholeFlags[FLAG_DRIVEN];
             bool anyUnotD = false;
             bool anyDnotU = false;
             bool anynotDU = false;
-            for (unsigned bit=0; bit<m_flags.size()/FLAGS_PER_BIT; bit++) {
+            for (unsigned bit = 0; bit < m_bitFlags.size() / FLAGS_PER_BIT; bit++) {
                 bool used = usedFlag(bit);
                 bool driv = drivenFlag(bit);
                 allU &= used;
@@ -170,8 +174,8 @@ public:
                 anyDnotU |= !used && driv;
                 anynotDU |= !used && !driv;
             }
-            if (allU) m_usedWhole = true;
-            if (allD) m_drivenWhole = true;
+            if (allU) m_wholeFlags[FLAG_USED] = true;
+            if (allD) m_wholeFlags[FLAG_DRIVEN] = true;
             // Test results
             if (nodep->isIfaceRef()) {
                 // For interface top level we don't do any tracking
@@ -229,18 +233,18 @@ private:
     // NODE STATE
     // Netlist:
     //  AstVar::user1p          -> UndrivenVar* for usage var, 0=not set yet
-    AstUser1InUse       m_inuser1;
+    AstUser1InUse m_inuser1;
     // Each always:
     //  AstNode::user2p         -> UndrivenVar* for usage var, 0=not set yet
-    AstUser2InUse       m_inuser2;
+    AstUser2InUse m_inuser2;
 
     // STATE
     std::vector<UndrivenVarEntry*> m_entryps[3];  // Nodes to delete when we are finished
-    bool                m_inBBox;       // In black box; mark as driven+used
-    bool                m_inContAssign;  // In continuous assignment
-    bool                m_inProcAssign;  // In procedural assignment
-    AstNodeFTask*       m_taskp;        // Current task
-    AstAlways*          m_alwaysCombp;  // Current always if combo, otherwise NULL
+    bool m_inBBox;  // In black box; mark as driven+used
+    bool m_inContAssign;  // In continuous assignment
+    bool m_inProcAssign;  // In procedural assignment
+    AstNodeFTask* m_taskp;  // Current task
+    AstAlways* m_alwaysCombp;  // Current always if combo, otherwise NULL
 
     // METHODS
     VL_DEBUG_FUNC;  // Declare debug()
@@ -274,7 +278,7 @@ private:
     }
 
     // VISITORS
-    virtual void visit(AstVar* nodep) {
+    virtual void visit(AstVar* nodep) VL_OVERRIDE {
         for (int usr=1; usr<(m_alwaysCombp?3:2); ++usr) {
             // For assigns and non-combo always, do just usr==1, to look
             // for module-wide undriven etc.
@@ -292,19 +296,22 @@ private:
                 || (m_taskp && (m_taskp->dpiImport() || m_taskp->dpiExport()))) {
                 entryp->usedWhole();
             }
+            if (nodep->valuep()) {
+                entryp->drivenWhole();
+            }
         }
         // Discover variables used in bit definitions, etc
         iterateChildren(nodep);
     }
-    virtual void visit(AstArraySel* nodep) {
+    virtual void visit(AstArraySel* nodep) VL_OVERRIDE {
         // Arrays are rarely constant assigned, so for now we punt and do all entries
         iterateChildren(nodep);
     }
-    virtual void visit(AstSliceSel* nodep) {
+    virtual void visit(AstSliceSel* nodep) VL_OVERRIDE {
         // Arrays are rarely constant assigned, so for now we punt and do all entries
         iterateChildren(nodep);
     }
-    virtual void visit(AstSel* nodep) {
+    virtual void visit(AstSel* nodep) VL_OVERRIDE {
         AstNodeVarRef* varrefp = VN_CAST(nodep->fromp(), NodeVarRef);
         AstConst* constp = VN_CAST(nodep->lsbp(), Const);
         if (varrefp && constp && !constp->num().isFourState()) {
@@ -327,20 +334,21 @@ private:
             iterateChildren(nodep);
         }
     }
-    virtual void visit(AstNodeVarRef* nodep) {
+    virtual void visit(AstNodeVarRef* nodep) VL_OVERRIDE {
         // Any variable
         if (nodep->lvalue()
             && !VN_IS(nodep, VarXRef)) {  // Ignore interface variables and similar ugly items
-            if (m_inProcAssign && !nodep->varp()->varType().isProcAssignable()) {
+            if (m_inProcAssign && !nodep->varp()->varType().isProcAssignable()
+                && !nodep->varp()->isDeclTyped()
+                && !nodep->varp()->isFuncLocal()) {
                 nodep->v3warn(PROCASSWIRE, "Procedural assignment to wire, perhaps intended var"
-                              " (IEEE 2017 6.5): "
-                              +nodep->prettyNameQ());
+                              << " (IEEE 1800-2017 6.5): " << nodep->prettyNameQ());
             }
             if (m_inContAssign && !nodep->varp()->varType().isContAssignable()
                 && !nodep->fileline()->language().systemVerilog()) {
                 nodep->v3warn(CONTASSREG, "Continuous assignment to reg, perhaps intended wire"
-                              " (IEEE 2005 6.1; Verilog only, legal in SV): "
-                              +nodep->prettyNameQ());
+                              << " (IEEE 1364-2005 6.1; Verilog only, legal in SV): "
+                              << nodep->prettyNameQ());
             }
         }
         for (int usr=1; usr<(m_alwaysCombp?3:2); ++usr) {
@@ -358,41 +366,38 @@ private:
     }
 
     // Don't know what black boxed calls do, assume in+out
-    virtual void visit(AstSysIgnore* nodep) {
+    virtual void visit(AstSysIgnore* nodep) VL_OVERRIDE {
         bool prevMark = m_inBBox;
         m_inBBox = true;
         iterateChildren(nodep);
         m_inBBox = prevMark;
     }
 
-    virtual void visit(AstAssign* nodep) {
+    virtual void visit(AstAssign* nodep) VL_OVERRIDE {
         bool prevProc = m_inProcAssign;
         {
             m_inProcAssign = true;
             iterateChildren(nodep);
-            m_inProcAssign = false;
         }
         m_inProcAssign = prevProc;
     }
-    virtual void visit(AstAssignDly* nodep) {
+    virtual void visit(AstAssignDly* nodep) VL_OVERRIDE {
         bool prevProc = m_inProcAssign;
         {
             m_inProcAssign = true;
             iterateChildren(nodep);
-            m_inProcAssign = false;
         }
         m_inProcAssign = prevProc;
     }
-    virtual void visit(AstAssignW* nodep) {
-        bool prevCont = m_inProcAssign;
+    virtual void visit(AstAssignW* nodep) VL_OVERRIDE {
+        bool prevCont = m_inContAssign;
         {
             m_inContAssign = true;
             iterateChildren(nodep);
-            m_inContAssign = false;
         }
-        m_inProcAssign = prevCont;
+        m_inContAssign = prevCont;
     }
-    virtual void visit(AstAlways* nodep) {
+    virtual void visit(AstAlways* nodep) VL_OVERRIDE {
         AstAlways* prevAlwp = m_alwaysCombp;
         {
             AstNode::user2ClearTree();
@@ -405,7 +410,7 @@ private:
         m_alwaysCombp = prevAlwp;
     }
 
-    virtual void visit(AstNodeFTask* nodep) {
+    virtual void visit(AstNodeFTask* nodep) VL_OVERRIDE {
         AstNodeFTask* prevTaskp = m_taskp;
         m_taskp = nodep;
         iterateChildren(nodep);
@@ -413,18 +418,18 @@ private:
     }
 
     // Until we support tables, primitives will have undriven and unused I/Os
-    virtual void visit(AstPrimitive* nodep) {}
+    virtual void visit(AstPrimitive* nodep) VL_OVERRIDE {}
 
     // Coverage artifacts etc shouldn't count as a sink
-    virtual void visit(AstCoverDecl* nodep) {}
-    virtual void visit(AstCoverInc* nodep) {}
-    virtual void visit(AstCoverToggle* nodep) {}
-    virtual void visit(AstTraceDecl* nodep) {}
-    virtual void visit(AstTraceInc* nodep) {}
+    virtual void visit(AstCoverDecl* nodep) VL_OVERRIDE {}
+    virtual void visit(AstCoverInc* nodep) VL_OVERRIDE {}
+    virtual void visit(AstCoverToggle* nodep) VL_OVERRIDE {}
+    virtual void visit(AstTraceDecl* nodep) VL_OVERRIDE {}
+    virtual void visit(AstTraceInc* nodep) VL_OVERRIDE {}
 
     // iterate
-    virtual void visit(AstConst* nodep) {}
-    virtual void visit(AstNode* nodep) {
+    virtual void visit(AstConst* nodep) VL_OVERRIDE {}
+    virtual void visit(AstNode* nodep) VL_OVERRIDE {
         iterateChildren(nodep);
     }
 public:
@@ -442,7 +447,7 @@ public:
              it != m_entryps[1].end(); ++it) {
             (*it)->reportViolations();
         }
-        for (int usr=1; usr<3; ++usr) {
+        for (int usr = 1; usr < 3; ++usr) {
             for (std::vector<UndrivenVarEntry*>::iterator it = m_entryps[usr].begin();
                  it != m_entryps[usr].end(); ++it) {
                 delete (*it);

@@ -8,32 +8,32 @@
 #include <verilated.h>
 #include <verilated_vcd_c.h>
 
-#include "Vt_trace_public_sig.h"
-#include "Vt_trace_public_sig_t.h"
-#include "Vt_trace_public_sig_glbl.h"
-
-#define STRINGIFY(x) STRINGIFY2(x)
-#define STRINGIFY2(x) #x
+#include VM_PREFIX_INCLUDE
+#ifdef T_TRACE_PUBLIC_SIG_VLT
+# include "Vt_trace_public_sig_vlt_t.h"
+# include "Vt_trace_public_sig_vlt_glbl.h"
+#else
+# include "Vt_trace_public_sig_t.h"
+# include "Vt_trace_public_sig_glbl.h"
+#endif
 
 unsigned long long main_time = 0;
-double sc_time_stamp() {
-    return (double)main_time;
-}
+double sc_time_stamp() { return (double)main_time; }
 
 const unsigned long long dt_2 = 3;
 
-int main(int argc, char **argv, char **env) {
-    Vt_trace_public_sig *top = new Vt_trace_public_sig("top");
+int main(int argc, char** argv, char** env) {
+    VM_PREFIX* top = new VM_PREFIX("top");
 
     Verilated::debug(0);
     Verilated::traceEverOn(true);
 
     VerilatedVcdC* tfp = new VerilatedVcdC;
-    top->trace(tfp,99);
-    tfp->open(STRINGIFY(TEST_OBJ_DIR) "/simx.vcd");
+    top->trace(tfp, 99);
+    tfp->open(VL_STRINGIFY(TEST_OBJ_DIR) "/simx.vcd");
 
     while (main_time <= 20) {
-        top->CLK   = (main_time/dt_2)%2;
+        top->CLK = (main_time / dt_2) % 2;
         top->eval();
 
         top->t->glbl->GSR = (main_time < 7);

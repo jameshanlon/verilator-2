@@ -3,7 +3,7 @@
 //
 // THIS MODULE IS PUBLICLY LICENSED
 //
-// Copyright 2001-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2001-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License Version 2.0.
 //
@@ -62,7 +62,7 @@ public:
         spTrace()->set_time_resolution(sc_get_time_resolution().to_string());
 # endif
     }
-    virtual ~VerilatedVcdSc() {}
+    virtual ~VerilatedVcdSc() { close(); }
 
     // METHODS
     /// Called by SystemC simulate()
@@ -96,8 +96,8 @@ private:
 # define DECL_TRACE_METHOD_B(tp) \
     virtual void trace(const tp& object, const std::string& name, int width);
 
-    virtual void write_comment(const std::string &);
-    virtual void trace(const unsigned int &, const std::string &, const char **);
+    virtual void write_comment(const std::string&);
+    virtual void trace(const unsigned int&, const std::string&, const char**);
 
 #if (SYSTEMC_VERSION>=20171012)
     DECL_TRACE_METHOD_A( sc_event )
@@ -145,8 +145,8 @@ private:
 # define DECL_TRACE_METHOD_B(tp) \
     virtual void trace(const tp& object, const sc_string& name, int width);
 
-    virtual void write_comment(const sc_string &);
-    virtual void trace(const unsigned int &, const sc_string &, const char **);
+    virtual void write_comment(const sc_string&);
+    virtual void trace(const unsigned int&, const sc_string&, const char**);
     virtual void delta_cycles(bool) {}
     virtual void space(int n) {}
 
@@ -189,8 +189,8 @@ private:
 # define DECL_TRACE_METHOD_B(tp) \
     virtual void trace(const tp& object, const sc_string& name, int width);
 
-    virtual void write_comment(const sc_string &);
-    virtual void trace(const unsigned int &, const sc_string &, const char **);
+    virtual void write_comment(const sc_string&);
+    virtual void trace(const unsigned int&, const sc_string&, const char**);
 
     DECL_TRACE_METHOD_A( bool )
     DECL_TRACE_METHOD_B( unsigned char )

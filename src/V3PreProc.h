@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilog::Preproc: Preprocess verilog code
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2000-2019 by Wilson Snyder.  This program is free software;
+// Copyright 2000-2020 by Wilson Snyder.  This program is free software;
 // you can redistribute it and/or modify it under the terms of either the
 // GNU Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -49,6 +49,7 @@ public:
     // CONSTANTS
     enum MiscConsts {
         DEFINE_RECURSION_LEVEL_MAX = 1000,      // How many `def substitutions before an error
+        LINE_TOKEN_MAX = 20000,                 // How many tokens on a line before an error
         INCLUDE_DEPTH_MAX = 500,                // How many `includes deep before an error
         STREAM_DEPTH_LEVEL_MAX = 2000,          // How many streams deep (sometimes `def deep) before an error
         //                                      // Set more than DEFINE_RECURSION_LEVEL_MAX
@@ -101,8 +102,8 @@ public:
 protected:
     // CONSTRUCTORS
     V3PreProc() {
-        m_debug=0;
-    };
+        m_debug = 0;
+    }
     void configure(FileLine* fl);
 public:
     static V3PreProc* createPreProc(FileLine* fl);

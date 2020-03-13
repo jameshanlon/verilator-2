@@ -2,11 +2,11 @@
 //*************************************************************************
 // DESCRIPTION: Verilator: Netlist (top level) functions
 //
-// Code available from: http://www.veripool.org/verilator
+// Code available from: https://verilator.org
 //
 //*************************************************************************
 //
-// Copyright 2003-2019 by Wilson Snyder.  This program is free software; you can
+// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
 // redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
@@ -82,5 +82,5 @@ void V3ParseImp::lexNew() {
 }
 
 void V3ParseImp::lexDestroy() {
-    if (m_lexerp) { delete m_lexerp; m_lexerp = NULL; }
+    if (m_lexerp) VL_DO_CLEAR(delete m_lexerp, m_lexerp = NULL);
 }
