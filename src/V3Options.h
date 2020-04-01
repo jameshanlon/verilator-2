@@ -6,15 +6,11 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
-// redistribute it and/or modify it under the terms of either the GNU
+// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
-//
-// Verilator is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// SPDX-License-Identifier: LGPL-3.0-only OR Artistic-2.0
 //
 //*************************************************************************
 
@@ -180,6 +176,7 @@ class V3Options {
     bool        m_protectIds;   // main switch: --protect-ids
     bool        m_public;       // main switch: --public
     bool        m_publicFlatRW;  // main switch: --public-flat-rw
+    bool        m_quietExit;  // main switch: --quiet-exit
     bool        m_relativeCFuncs; // main switch: --relative-cfuncs
     bool        m_relativeIncludes; // main switch: --relative-includes
     bool        m_reportUnoptflat; // main switch: --report-unoptflat
@@ -374,6 +371,7 @@ class V3Options {
     bool lintOnly() const { return m_lintOnly; }
     bool ignc() const { return m_ignc; }
     bool inhibitSim() const { return m_inhibitSim; }
+    bool quietExit() const { return m_quietExit; }
     bool relativeCFuncs() const { return m_relativeCFuncs; }
     bool reportUnoptflat() const { return m_reportUnoptflat; }
     bool vpi() const { return m_vpi; }

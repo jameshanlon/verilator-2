@@ -6,15 +6,11 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
-// redistribute it and/or modify it under the terms of either the GNU
+// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
-//
-// Verilator is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// SPDX-License-Identifier: LGPL-3.0-only OR Artistic-2.0
 //
 //*************************************************************************
 
@@ -288,7 +284,7 @@ string FileLine::asciiLineCol() const {
 }
 string FileLine::ascii() const {
     // For most errors especially in the parser the lastLineno is more accurate than firstLineno
-    return filename()+":"+cvtToStr(lastLineno());
+    return filename() + ":" + cvtToStr(lastLineno()) + ":" + cvtToStr(firstColumn());
 }
 std::ostream& operator<<(std::ostream& os, FileLine* fileline) {
     os <<fileline->ascii()<<": "<<std::hex;
@@ -376,8 +372,11 @@ string FileLine::warnOther() const {
 
 string FileLine::source() const {
     if (VL_UNCOVERABLE(!m_contentp)) {
-        if (debug() || v3Global.opt.debugCheck()) return "%Error-internal-no-contents";
-        else return "";
+        if (debug() || v3Global.opt.debugCheck()) {
+            return "%Error: internal tracking of file contents failed";
+        } else {
+            return "";
+        }
     }
     return m_contentp->getLine(m_contentLineno);
 }

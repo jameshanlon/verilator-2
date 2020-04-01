@@ -6,15 +6,11 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
-// redistribute it and/or modify it under the terms of either the GNU
+// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
-//
-// Verilator is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// SPDX-License-Identifier: LGPL-3.0-only OR Artistic-2.0
 //
 //*************************************************************************
 
@@ -157,7 +153,7 @@ int main(int argc, char** argv, char** env) {
 
     {
         const VlStringSet& readFiles = top.opt.readFiles();
-        for (VlStringSet::iterator it = readFiles.begin(); it != readFiles.end(); ++it) {
+        for (VlStringSet::const_iterator it = readFiles.begin(); it != readFiles.end(); ++it) {
             string filename = *it;
             top.readCoverage(filename);
         }
@@ -183,7 +179,7 @@ int main(int argc, char** argv, char** env) {
         V3Error::abortIfWarnings();
         if (top.opt.unlink()) {
             const VlStringSet& readFiles = top.opt.readFiles();
-            for (VlStringSet::iterator it = readFiles.begin(); it != readFiles.end(); ++it) {
+            for (VlStringSet::const_iterator it = readFiles.begin(); it != readFiles.end(); ++it) {
                 string filename = *it;
                 unlink(filename.c_str());
             }

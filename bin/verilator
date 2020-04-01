@@ -5,11 +5,7 @@
 # can redistribute it and/or modify it under the terms of either the GNU
 # Lesser General Public License Version 3 or the Perl Artistic License
 # Version 2.0.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# SPDX-License-Identifier: LGPL-3.0-only OR Artistic-2.0
 #
 ######################################################################
 
@@ -1273,7 +1269,8 @@ detailed description.
 
 =item --quiet-exit
 
-When exiting due to an error, do not display the "Command Failed" message.
+When exiting due to an error, do not display the "Exiting due to Errors"
+nor "Command Failed" messages.
 
 =item --relative-includes
 
@@ -3914,7 +3911,19 @@ checking across the designs, and prevents other users from compiling your
 code without knowing the magic set of disables needed to successfully
 compile your design.
 
-List of all warnings:
+=head2 Error and Warning Format
+
+Warnings and errors printed by Verilator always match this regular
+expression:
+
+        %(Error|Warning)(-[A-Z0-9_]+)?: ((\S+):(\d+):((\d+):)? )?.*
+
+Errors and warning start with a percent sign (historical heritage from
+Digital Equipment Corporation).  Some errors or warning have a code
+attached, with meanings described below.  Some errors also have a filename,
+line number and optional column number (starting at column 1 to match GCC).
+
+=head2 List of all warnings
 
 =over 4
 
@@ -5359,15 +5368,15 @@ remain anonymous.
 
 The latest version is available from L<https://verilator.org>.
 
-Copyright 2003-2020 by Wilson Snyder.  Verilator is free software; you can
+Copyright 2003-2020 by Wilson Snyder. This program is free software; you can
 redistribute it and/or modify the Verilator internals under the terms of
 either the GNU Lesser General Public License Version 3 or the Perl Artistic
 License Version 2.0.
 
 All Verilog and C++/SystemC code quoted within this documentation file are
-released into the Public Domain.  Many example files and test files are
-likewise released into the Public Domain as described in the files
-themselves.
+released as Creative Commons Public Domain (CC0).  Many example files and
+test files are likewise released under CC0 into effectively the Public
+Domain as described in the files themselves.
 
 =head1 SEE ALSO
 

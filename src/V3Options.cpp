@@ -6,15 +6,11 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
-// redistribute it and/or modify it under the terms of either the GNU
+// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
-//
-// Verilator is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// SPDX-License-Identifier: LGPL-3.0-only OR Artistic-2.0
 //
 //*************************************************************************
 
@@ -99,6 +95,24 @@ public:
     V3OptionsImp() {}
     ~V3OptionsImp() {}
 };
+
+//######################################################################
+// V3LangCode class functions
+
+V3LangCode::V3LangCode(const char* textp) {
+    // Return code for given string, or ERROR, which is a bad code
+    for (int codei = V3LangCode::L_ERROR; codei < V3LangCode::_ENUM_END; ++codei) {
+        V3LangCode code = V3LangCode(codei);
+        if (0 == VL_STRCASECMP(textp, code.ascii())) {
+            m_e = code;
+            return;
+        }
+    }
+    m_e = V3LangCode::L_ERROR;
+}
+
+//######################################################################
+// V3Options class functions
 
 void V3Options::addIncDirUser(const string& incdir) {
     m_impp->addIncDirUser(incdir);
@@ -229,26 +243,12 @@ void V3Options::addArg(const string& arg) {
 
 string V3Options::allArgsString() {
     string out;
-    for (std::list<string>::iterator it=m_impp->m_allArgs.begin();
+    for (std::list<string>::const_iterator it = m_impp->m_allArgs.begin();
          it != m_impp->m_allArgs.end(); ++it) {
         if (out != "") out += " ";
         out += *it;
     }
     return out;
-}
-
-//######################################################################
-// V3LangCode class functions
-
-V3LangCode::V3LangCode(const char* textp) {
-    // Return code for given string, or ERROR, which is a bad code
-    for (int codei=V3LangCode::L_ERROR; codei<V3LangCode::_ENUM_END; ++codei) {
-        V3LangCode code = V3LangCode(codei);
-        if (0 == VL_STRCASECMP(textp, code.ascii())) {
-            m_e = code; return;
-        }
-    }
-    m_e = V3LangCode::L_ERROR;
 }
 
 //######################################################################
@@ -780,6 +780,7 @@ void V3Options::parseOptsList(FileLine* fl, const string& optdir, int argc, char
             else if ( onoff (sw, "-public", flag/*ref*/))            { m_public = flag; }
             else if ( onoff (sw, "-public-flat-rw", flag/*ref*/) )   { m_publicFlatRW = flag; v3Global.dpi(true); }
             else if (!strncmp(sw, "-pvalue+", strlen("-pvalue+")))   { addParameter(string(sw+strlen("-pvalue+")), false); }
+            else if ( onoff (sw, "-quiet-exit", flag/*ref*/))        { m_quietExit = flag; }
             else if ( onoff (sw, "-relative-cfuncs", flag/*ref*/))   { m_relativeCFuncs = flag; }
             else if ( onoff (sw, "-relative-includes", flag/*ref*/)) { m_relativeIncludes = flag; }
             else if ( onoff (sw, "-report-unoptflat", flag/*ref*/))  { m_reportUnoptflat = flag; }
@@ -1486,6 +1487,7 @@ V3Options::V3Options() {
     m_preprocNoLine = false;
     m_public = false;
     m_publicFlatRW = false;
+    m_quietExit = false;
     m_relativeCFuncs = true;
     m_relativeIncludes = false;
     m_reportUnoptflat = false;

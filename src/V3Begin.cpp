@@ -6,15 +6,11 @@
 //
 //*************************************************************************
 //
-// Copyright 2003-2020 by Wilson Snyder.  This program is free software; you can
-// redistribute it and/or modify it under the terms of either the GNU
+// Copyright 2003-2020 by Wilson Snyder. This program is free software; you
+// can redistribute it and/or modify it under the terms of either the GNU
 // Lesser General Public License Version 3 or the Perl Artistic License
 // Version 2.0.
-//
-// Verilator is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
+// SPDX-License-Identifier: LGPL-3.0-only OR Artistic-2.0
 //
 //*************************************************************************
 // V3Begin's Transformations:
@@ -168,6 +164,18 @@ private:
             // Move to module
             nodep->unlinkFrBack();
             if (m_ftaskp) m_ftaskp->addStmtsp(nodep);  // Begins under funcs just move into the func
+            else m_modp->addStmtp(nodep);
+        }
+    }
+    virtual void visit(AstTypedef* nodep) VL_OVERRIDE {
+        if (m_unnamedScope != "") {
+            // Rename it
+            nodep->name(m_unnamedScope + "__DOT__" + nodep->name());
+            m_statep->userMarkChanged(nodep);
+            // Move to module
+            nodep->unlinkFrBack();
+            // Begins under funcs just move into the func
+            if (m_ftaskp) m_ftaskp->addStmtsp(nodep);
             else m_modp->addStmtp(nodep);
         }
     }
